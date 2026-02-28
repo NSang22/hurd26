@@ -1,0 +1,19 @@
+modalities:
+  eeg: true
+  hrv: true
+  gsr: true
+  rppg: true
+  movement: true
+  speech: true
+  keyboard_mouse: true
+
+classifier:
+  model: xgboost
+  target_conditions:
+    - rett_syndrome
+    - dravet_syndrome
+    - angelman_syndrome
+
+output:
+  show_genomic_panels: true
+  show_cost_savings: true
