@@ -177,7 +177,7 @@ neurophenotype/
 | **Laptop webcam** | rPPG cardiovascular, MediaPipe movement tracking | Included |
 | **Laptop microphone** | Speech vocal biomarker capture | Included |
 
-The pipeline is fully modular. If a sensor isn't available, set it to `false` in `config.yaml` — the fusion layer concatenates only active modality vectors and the classifier handles missing features gracefully.
+The pipeline is fully modular. If a sensor isn't available, set it to `false` in `config.yaml` — the fusion layer concatenates only active modality vectors and the classifier will handle the missing features.
 
 ---
 
@@ -244,5 +244,3 @@ After biosignal results return, the center column displays an interactive clinic
 ## Important Disclaimer
 
 This system is a **research prototype** for diagnostic triage. It does **not** provide a clinical diagnosis. All outputs are probabilistic recommendations intended to prioritize the next diagnostic step. Results should be interpreted by a qualified clinician in the context of the full clinical picture.
-
-*"We're not diagnosing. We're telling clinicians which gene to sequence first — and why."*
