@@ -7,10 +7,12 @@ Run from neurophenotype/:
 from __future__ import annotations
 import os
 import sys
+import sqlite3
 from typing import Any
 
 import numpy as np
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -26,6 +28,52 @@ from clinical.soap import (
 from classifier.train import FEATURE_GROUPS, SYNTHETIC_PROFILES
 
 app = Flask(__name__, static_folder=os.path.dirname(__file__))
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "neurophenotype-hackathon-secret-2026")
+
+GOOGLE_CLIENT_ID = "772107930801-trp0gb6shebkfok20d5glhrpeus2ngkv.apps.googleusercontent.com"
+
+# ── SQLite user database ──────────────────────────────────────────────────────
+DB_PATH = os.path.join(os.path.dirname(__file__), "users.db")
+
+
+def _get_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_db() -> None:
+    conn = _get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            password_hash TEXT,
+            role TEXT NOT NULL DEFAULT 'patient',
+            google_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    # Seed demo accounts if they don't exist
+    demo_users = [
+        ("doctor@neuro.com", "Dr. Clinician", generate_password_hash("NeuroPhenotype2026"), "doctor"),
+        ("patient@family.com", "Patient Guardian", generate_password_hash("FamilyAccess2026"), "patient"),
+    ]
+    for email, name, pw_hash, role in demo_users:
+        try:
+            conn.execute(
+                "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)",
+                (email, name, pw_hash, role),
+            )
+        except sqlite3.IntegrityError:
+            pass  # already seeded
+    conn.commit()
+    conn.close()
+
+
+_init_db()
 
 MODEL_PATH = "classifier/model.pkl"
 CONFIG_PATH = "config.yaml"
@@ -191,7 +239,124 @@ def index() -> Any:
 
 @app.route("/dashboard")
 def dashboard() -> Any:
+    # Allow access if session has auth, OR if ?skip= param is present
+    if not session.get("user_role") and "skip" not in request.args:
+        return send_from_directory(os.path.dirname(__file__), "landing.html")
     return send_from_directory(os.path.dirname(__file__), "index.html")
+
+
+# ── Auth API ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/auth/signup", methods=["POST"])
+def auth_signup() -> Any:
+    body = request.get_json() or {}
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    name = (body.get("name") or "").strip()
+    role = body.get("role", "patient")
+    if role not in ("doctor", "patient"):
+        role = "patient"
+    if not email or not password:
+        return jsonify({"status": "error", "message": "Email and password are required."}), 400
+    if len(password) < 6:
+        return jsonify({"status": "error", "message": "Password must be at least 6 characters."}), 400
+    conn = _get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)",
+            (email, name or email.split("@")[0], generate_password_hash(password), role),
+        )
+        conn.commit()
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        session["user_id"] = user["id"]
+        session["user_email"] = user["email"]
+        session["user_name"] = user["name"]
+        session["user_role"] = user["role"]
+        return jsonify({"status": "ok", "user": {"email": user["email"], "name": user["name"], "role": user["role"]}})
+    except sqlite3.IntegrityError:
+        return jsonify({"status": "error", "message": "An account with that email already exists."}), 409
+    finally:
+        conn.close()
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login() -> Any:
+    body = request.get_json() or {}
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    if not email or not password:
+        return jsonify({"status": "error", "message": "Email and password are required."}), 400
+    conn = _get_db()
+    user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    if not user or not user["password_hash"] or not check_password_hash(user["password_hash"], password):
+        return jsonify({"status": "error", "message": "Invalid email or password."}), 401
+    session["user_id"] = user["id"]
+    session["user_email"] = user["email"]
+    session["user_name"] = user["name"]
+    session["user_role"] = user["role"]
+    return jsonify({"status": "ok", "user": {"email": user["email"], "name": user["name"], "role": user["role"]}})
+
+
+@app.route("/api/auth/google", methods=["POST"])
+def auth_google() -> Any:
+    """Verify a Google ID token, find-or-create the user, start session."""
+    body = request.get_json() or {}
+    credential = body.get("credential") or ""
+    role = body.get("role", "patient")
+    if role not in ("doctor", "patient"):
+        role = "patient"
+    if not credential:
+        return jsonify({"status": "error", "message": "Missing Google credential."}), 400
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+        idinfo = google_id_token.verify_oauth2_token(
+            credential, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        google_id = idinfo["sub"]
+        email = idinfo.get("email", "").lower()
+        name = idinfo.get("name", email.split("@")[0])
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Google token verification failed: {exc}"}), 401
+    # Find or create user
+    conn = _get_db()
+    user = conn.execute("SELECT * FROM users WHERE google_id = ? OR email = ?", (google_id, email)).fetchone()
+    if user:
+        # Link google_id if not yet linked
+        if not user["google_id"]:
+            conn.execute("UPDATE users SET google_id = ? WHERE id = ?", (google_id, user["id"]))
+            conn.commit()
+    else:
+        conn.execute(
+            "INSERT INTO users (email, name, role, google_id) VALUES (?, ?, ?, ?)",
+            (email, name, role, google_id),
+        )
+        conn.commit()
+        user = conn.execute("SELECT * FROM users WHERE google_id = ?", (google_id,)).fetchone()
+    conn.close()
+    session["user_id"] = user["id"]
+    session["user_email"] = user["email"]
+    session["user_name"] = user["name"]
+    session["user_role"] = user["role"]
+    return jsonify({"status": "ok", "user": {"email": user["email"], "name": user["name"], "role": user["role"]}})
+
+
+@app.route("/api/auth/me")
+def auth_me() -> Any:
+    if not session.get("user_role"):
+        return jsonify({"status": "error", "message": "Not authenticated."}), 401
+    return jsonify({"status": "ok", "user": {
+        "email": session.get("user_email"),
+        "name": session.get("user_name"),
+        "role": session.get("user_role"),
+    }})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout() -> Any:
+    session.clear()
+    return jsonify({"status": "ok"})
 
 
 @app.route("/speech-test")

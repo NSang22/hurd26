@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --bg:#06090f; --panel:#101725; --line:rgba(117,149,201,.22); --text:#eaf0fb; --muted:#95a2bf;
@@ -97,23 +98,53 @@
     .form {
       margin-top:14px; display:grid; gap:10px;
     }
+    .form-toggle {
+      display:flex; gap:0; margin-bottom:4px; border-radius:999px; overflow:hidden; border:1px solid rgba(117,149,201,.22);
+    }
+    .form-toggle button {
+      flex:1; border-radius:0; background:transparent; color:var(--muted); padding:9px 10px; font-size:.58rem;
+      border:none; transition:background .15s, color .15s;
+    }
+    .form-toggle button.active { background:rgba(24,232,166,.12); color:var(--green); }
     label {
       display:grid; gap:6px; font-size:.72rem; color:var(--muted);
     }
     input {
       width:100%; border:1px solid rgba(117,149,201,.3); background:#0b1019; color:var(--text); border-radius:12px; padding:10px 12px; font:inherit;
     }
+    input:focus { outline:none; border-color:var(--green); box-shadow:0 0 0 2px rgba(24,232,166,.15); }
     .btn-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
     button {
       border:0; cursor:pointer; border-radius:999px; padding:11px 16px; font-family:var(--mono); font-size:.6rem;
       letter-spacing:.14em; text-transform:uppercase; transition:transform .18s ease, box-shadow .18s ease;
     }
     button:hover { transform:translateY(-1px); }
+    button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
     .btn-primary { background:var(--green); color:#03120c; box-shadow:0 0 16px rgba(24,232,166,.2); }
-    .btn-google { background:transparent; color:var(--text); border:1px solid rgba(117,149,201,.3); }
+    .btn-google {
+      background:transparent; color:var(--text); border:1px solid rgba(117,149,201,.3);
+      display:inline-flex; align-items:center; gap:8px;
+    }
+    .btn-google svg { width:16px; height:16px; flex-shrink:0; }
+    .btn-skip {
+      background:transparent; color:var(--dim, #6a7796); border:1px dashed rgba(117,149,201,.22);
+      font-size:.52rem; padding:8px 14px;
+    }
+    .btn-skip:hover { color:var(--amber); border-color:var(--amber); }
+    .err-msg {
+      font-size:.72rem; color:var(--coral); min-height:1.2em; margin-top:2px; transition:opacity .2s;
+    }
+    .signup-fields { display:none; }
+    .signup-fields.show { display:contents; }
     .note {
       margin-top:6px; font-size:.68rem; line-height:1.6; color:var(--muted);
     }
+    .or-divider {
+      display:flex; align-items:center; gap:10px; margin:6px 0 2px;
+      font-family:var(--mono); font-size:.54rem; letter-spacing:.12em; text-transform:uppercase; color:var(--dim, #6a7796);
+    }
+    .or-divider::before, .or-divider::after { content:""; flex:1; height:1px; background:rgba(117,149,201,.18); }
+    .google-btn-wrap { margin-top:2px; }
     @media (max-width: 980px) {
       .shell { grid-template-columns:1fr; }
       .hero { border-right:none; border-bottom:1px solid var(--line); }
@@ -136,12 +167,20 @@
         </div>
         <div class="track-item">
           <div class="track-label">Patient View</div>
-          <div class="track-value">A clear summary of findings, confidence, and recommended actions - designed for families navigating the diagnostic journey.</div>
+          <div class="track-value">A clear summary of findings, confidence, and recommended actions &mdash; designed for families navigating the diagnostic journey.</div>
+        </div>
+        <div class="track-item">
+          <div class="track-label">Demo Accounts</div>
+          <div class="track-value">
+            <strong>Doctor:</strong> doctor@neuro.com / NeuroPhenotype2026<br/>
+            <strong>Patient:</strong> patient@family.com / FamilyAccess2026
+          </div>
         </div>
       </div>
     </section>
 
     <section class="login-grid">
+      <!-- ── Doctor card ── -->
       <div class="role-card" data-role="doctor">
         <div class="role-top">
           <div class="role-name">Doctor Sign In</div>
@@ -150,17 +189,29 @@
         <div class="role-copy">
           Use the clinician console to review biosignal evidence, structured phenotype input, and the recommended genomic next step.
         </div>
-        <div class="form">
-          <label>Username<input id="doctorUser" type="text" placeholder="doctor@clinic.org" /></label>
-          <label>Password<input id="doctorPass" type="password" placeholder="Enter password" /></label>
+        <div class="form" id="doctorForm">
+          <div class="form-toggle">
+            <button class="active" onclick="toggleForm('doctor','login')">Sign In</button>
+            <button onclick="toggleForm('doctor','signup')">Create Account</button>
+          </div>
+          <label>Email<input id="doctorEmail" type="email" placeholder="doctor@neuro.com" autocomplete="email" /></label>
+          <label>Password<input id="doctorPass" type="password" placeholder="Enter password" autocomplete="current-password" /></label>
+          <div class="signup-fields" id="doctorSignup">
+            <label>Full Name<input id="doctorName" type="text" placeholder="Dr. Smith" autocomplete="name" /></label>
+          </div>
+          <div class="err-msg" id="doctorErr"></div>
         </div>
         <div class="btn-row">
-          <button class="btn-primary" onclick="goToDashboard('doctor')">Sign In</button>
-          <button class="btn-google" onclick="goToDashboard('doctor')">Sign In with Google</button>
+          <button class="btn-primary" id="doctorSubmit" onclick="handleAuth('doctor')">Sign In</button>
+          <button class="btn-skip" onclick="skipAuth('doctor')">Skip (Demo)</button>
         </div>
-        <div class="note">This is a lightweight demo sign-in. It routes by role and does not perform real authentication.</div>
+        <div class="or-divider">or</div>
+        <div class="google-btn-wrap">
+          <div id="googleBtnDoctor"></div>
+        </div>
       </div>
 
+      <!-- ── Patient card ── -->
       <div class="role-card" data-role="patient">
         <div class="role-top">
           <div class="role-name">Patient / Guardian Sign In</div>
@@ -169,24 +220,169 @@
         <div class="role-copy">
           Use the family-facing view for a simpler explanation of the assessment, the likely next step, and what that means.
         </div>
-        <div class="form">
-          <label>Username<input id="patientUser" type="text" placeholder="family@example.com" /></label>
-          <label>Password<input id="patientPass" type="password" placeholder="Enter password" /></label>
+        <div class="form" id="patientForm">
+          <div class="form-toggle">
+            <button class="active" onclick="toggleForm('patient','login')">Sign In</button>
+            <button onclick="toggleForm('patient','signup')">Create Account</button>
+          </div>
+          <label>Email<input id="patientEmail" type="email" placeholder="patient@family.com" autocomplete="email" /></label>
+          <label>Password<input id="patientPass" type="password" placeholder="Enter password" autocomplete="current-password" /></label>
+          <div class="signup-fields" id="patientSignup">
+            <label>Full Name<input id="patientName" type="text" placeholder="Jane Doe" autocomplete="name" /></label>
+          </div>
+          <div class="err-msg" id="patientErr"></div>
         </div>
         <div class="btn-row">
-          <button class="btn-primary" onclick="goToDashboard('patient')">Sign In</button>
-          <button class="btn-google" onclick="goToDashboard('patient')">Sign In with Google</button>
+          <button class="btn-primary" id="patientSubmit" onclick="handleAuth('patient')">Sign In</button>
+          <button class="btn-skip" onclick="skipAuth('patient')">Skip (Demo)</button>
         </div>
-        <div class="note">This role hides most clinical detail and reduces the interface to the essentials.</div>
+        <div class="or-divider">or</div>
+        <div class="google-btn-wrap">
+          <div id="googleBtnPatient"></div>
+        </div>
       </div>
     </section>
   </div>
 
   <script>
-    function goToDashboard(role) {
-      const params = new URLSearchParams({ role });
-      window.location.href = `/dashboard?${params.toString()}`;
+    const GOOGLE_CLIENT_ID = "772107930801-trp0gb6shebkfok20d5glhrpeus2ngkv.apps.googleusercontent.com";
+
+    // Track login vs signup mode per card
+    const formMode = { doctor: "login", patient: "login" };
+
+    function toggleForm(role, mode) {
+      formMode[role] = mode;
+      const card = document.querySelector(`.role-card[data-role="${role}"]`);
+      const btns = card.querySelectorAll(".form-toggle button");
+      btns[0].classList.toggle("active", mode === "login");
+      btns[1].classList.toggle("active", mode === "signup");
+      const signupFields = document.getElementById(`${role}Signup`);
+      signupFields.classList.toggle("show", mode === "signup");
+      const submitBtn = document.getElementById(`${role}Submit`);
+      submitBtn.textContent = mode === "signup" ? "Create Account" : "Sign In";
+      document.getElementById(`${role}Err`).textContent = "";
     }
+
+    async function handleAuth(role) {
+      const email = document.getElementById(`${role}Email`).value.trim();
+      const password = document.getElementById(`${role}Pass`).value;
+      const errEl = document.getElementById(`${role}Err`);
+      const submitBtn = document.getElementById(`${role}Submit`);
+      errEl.textContent = "";
+
+      if (!email || !password) {
+        errEl.textContent = "Email and password are required.";
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Signing in...";
+
+      const isSignup = formMode[role] === "signup";
+      const endpoint = isSignup ? "/api/auth/signup" : "/api/auth/login";
+      const payload = { email, password, role };
+      if (isSignup) {
+        payload.name = document.getElementById(`${role}Name`)?.value.trim() || "";
+      }
+
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          window.location.href = `/dashboard?role=${data.user.role}`;
+        } else {
+          errEl.textContent = data.message || "Authentication failed.";
+        }
+      } catch (e) {
+        errEl.textContent = "Network error. Is the server running?";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isSignup ? "Create Account" : "Sign In";
+      }
+    }
+
+    function skipAuth(role) {
+      window.location.href = `/dashboard?role=${role}&skip=1`;
+    }
+
+    // Google One-Tap / button callback
+    function handleGoogleCredential(response, role) {
+      fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: response.credential, role }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "ok") {
+            window.location.href = `/dashboard?role=${data.user.role}`;
+          } else {
+            document.getElementById(`${role}Err`).textContent = data.message || "Google sign-in failed.";
+          }
+        })
+        .catch(() => {
+          document.getElementById(`${role}Err`).textContent = "Network error during Google sign-in.";
+        });
+    }
+
+    // Enter key submits the active form
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const active = document.activeElement;
+      if (!active || active.tagName !== "INPUT") return;
+      const card = active.closest(".role-card");
+      if (card) {
+        const role = card.dataset.role;
+        handleAuth(role);
+      }
+    });
+
+    // Initialize Google Sign-In buttons
+    window.addEventListener("load", () => {
+      if (typeof google === "undefined" || !google.accounts) return;
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (resp) => handleGoogleCredential(resp, "_pending"),
+      });
+
+      // Render button for Doctor card
+      google.accounts.id.renderButton(
+        document.getElementById("googleBtnDoctor"),
+        { theme: "filled_black", size: "large", text: "signin_with", width: 260 }
+      );
+      // Intercept — wrap the Google callback per role
+      const doctorBtn = document.getElementById("googleBtnDoctor");
+      doctorBtn.addEventListener("click", () => { window._pendingGoogleRole = "doctor"; }, true);
+
+      google.accounts.id.renderButton(
+        document.getElementById("googleBtnPatient"),
+        { theme: "filled_black", size: "large", text: "signin_with", width: 260 }
+      );
+      const patientBtn = document.getElementById("googleBtnPatient");
+      patientBtn.addEventListener("click", () => { window._pendingGoogleRole = "patient"; }, true);
+
+      // Override initialization to route by pending role
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (resp) => {
+          const role = window._pendingGoogleRole || "patient";
+          handleGoogleCredential(resp, role);
+        },
+      });
+      // Re-render after re-init
+      google.accounts.id.renderButton(
+        document.getElementById("googleBtnDoctor"),
+        { theme: "filled_black", size: "large", text: "signin_with", width: 260 }
+      );
+      google.accounts.id.renderButton(
+        document.getElementById("googleBtnPatient"),
+        { theme: "filled_black", size: "large", text: "signin_with", width: 260 }
+      );
+    });
   </script>
 </body>
 </html>

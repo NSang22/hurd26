@@ -52,6 +52,15 @@
     }
     .mode-toggle button.active { background:var(--green); color:#0a0d14; font-weight:700; }
     .mode-toggle button:not(.active):hover { color:var(--text); }
+    /* ── User / Logout ── */
+    .user-bar { display:flex; align-items:center; gap:12px; margin-left:18px; }
+    .user-name { font-family:var(--mono); font-size:.6rem; letter-spacing:.1em; color:var(--muted); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .btn-logout {
+      font-family:var(--mono); font-size:.55rem; letter-spacing:.12em; text-transform:uppercase;
+      padding:5px 12px; border:1px solid rgba(251,126,143,.3); border-radius:8px; cursor:pointer;
+      background:transparent; color:var(--coral); transition:background .15s, color .15s;
+    }
+    .btn-logout:hover { background:rgba(251,126,143,.12); color:#fff; }
     /* ── Clinical banner ── */
     .clinical-banner {
       display:none; margin-top:10px; padding:10px 16px; border-radius:12px;
@@ -411,6 +420,10 @@
         <button id="modeDemo" class="active">Demo</button>
         <button id="modeClinical">Clinical</button>
       </div>
+      <div class="user-bar">
+        <span class="user-name" id="userName"></span>
+        <button class="btn-logout" id="logoutBtn" onclick="doLogout()">Sign Out</button>
+      </div>
     </header>
     <main>
       <aside class="col" id="inputCol">
@@ -616,7 +629,34 @@
       "Checking prior-test reanalysis triggers...",
       "Synthesizing next-step recommendation..."
     ];
-    const currentRole = new URLSearchParams(window.location.search).get("role") || "doctor";
+    // Role comes from URL param (set at login redirect or skip), fallback to doctor
+    let currentRole = new URLSearchParams(window.location.search).get("role") || "doctor";
+
+    // Fetch session info and populate user bar
+    (async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (data.status === "ok" && data.user) {
+          currentRole = data.user.role || currentRole;
+          document.getElementById("userName").textContent = data.user.name || data.user.email;
+        } else {
+          // Not authenticated — if no skip param, redirect to landing
+          if (!new URLSearchParams(window.location.search).has("skip")) {
+            window.location.href = "/";
+            return;
+          }
+          document.getElementById("userName").textContent = "Demo";
+        }
+      } catch {
+        document.getElementById("userName").textContent = "Offline";
+      }
+    })();
+
+    async function doLogout() {
+      try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
+      window.location.href = "/";
+    }
 
     // ── Live document state ──
     let lastBiosignalResults = null;   // stashed after each assessment for live re-scoring

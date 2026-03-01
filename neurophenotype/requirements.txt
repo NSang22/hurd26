@@ -16,6 +16,8 @@ pdfplumber
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 flask
 streamlit          # fallback: streamlit run dashboard/app.py
+google-auth        # Google OAuth ID-token verification
+requests           # HTTP transport for google-auth
 
 # ── BLE (HRV via HeartCast, GSR + IMU via Arduino) ───────────────────────────
 bleak
