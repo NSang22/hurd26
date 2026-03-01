@@ -38,11 +38,11 @@ The output is **not a diagnosis**. It is the **next best diagnostic step**: a pr
 ```
 INPUT LAYER
 ├── Half 1: Passive Biosignals              Half 2: Clinical Record
-│   ├── EEG (23 features)                   ├── HPO term checklist
-│   ├── HRV - Apple Watch (7 features)      ├── Age of onset / severity
+│   ├── EEG (23 features) (Live)                   ├── HPO term checklist
+│   ├── HRV - Apple Watch (7 features) (Live)    ├── Age of onset / severity
 │   ├── GSR - Arduino BLE (4 features)      ├── Family history
-│   ├── Movement - MediaPipe+IMU (7)        ├── Prior test history / PDF upload
-│   ├── Speech - librosa (6 features)       └── Inheritance pattern
+│   ├── Movement - MediaPipe (7) (Live)        ├── Prior test history / PDF upload
+│   ├── Speech - librosa (6 features) (Live)       └── Inheritance pattern
 │   ├── rPPG - webcam (4 features)
 │   └── Keyboard/Mouse (4 features)
 │
