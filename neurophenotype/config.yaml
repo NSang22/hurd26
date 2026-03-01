@@ -1,11 +1,11 @@
 modalities:
   eeg: true
   hrv: true
-  gsr: true
-  rppg: true
+  gsr: false
+  rppg: false
   movement: true
   speech: true
-  keyboard_mouse: true
+  keyboard_mouse: false
 
 classifier:
   model: xgboost

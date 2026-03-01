@@ -28,7 +28,7 @@ ARDUINO_SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
 GSR_CHAR_UUID = "12345678-1234-1234-1234-123456789abe"
 
 SAMPLE_RATE_HZ = 50       # Arduino sends at 50 Hz
-COLLECTION_SECONDS = 60   # collect 60s for stable SCL baseline
+COLLECTION_SECONDS = 30   # collect 60s for stable SCL baseline
 VCC = 3.3                 # Arduino supply voltage
 R_FIXED = 100_000         # 100 kΩ voltage divider resistor
 
@@ -135,11 +135,13 @@ class GSRModality(BaseModality):
 
         voltage_buffer: list[float] = []
 
-        while True:
+        MAX_RETRIES = 3
+        for attempt in range(MAX_RETRIES):
             device = await _scan_for_arduino()
             if not device:
-                print("[GSR] Arduino not found. Retrying in 5s...")
-                await asyncio.sleep(5)
+                print(f"[GSR] Arduino not found (attempt {attempt+1}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(3)
                 continue
 
             try:
@@ -158,8 +160,9 @@ class GSRModality(BaseModality):
 
             except Exception as e:
                 print(f"[GSR] BLE error: {e}")
-                print("[GSR] Reconnecting in 3s...")
-                await asyncio.sleep(3)
+                if attempt < MAX_RETRIES - 1:
+                    print(f"[GSR] Retrying in 3s... ({attempt+1}/{MAX_RETRIES})")
+                    await asyncio.sleep(3)
 
         samples = np.array(voltage_buffer, dtype=np.float32)
         print(f"[GSR] Collected {len(samples)} samples ({len(samples)/SAMPLE_RATE_HZ:.1f}s at {SAMPLE_RATE_HZ} Hz)")

@@ -1,0 +1,47 @@
+# ── Core scientific stack ─────────────────────────────────────────────────────
+numpy
+scipy
+scikit-learn
+joblib
+
+# ── Classifier ────────────────────────────────────────────────────────────────
+xgboost
+
+# ── Config / serialization ────────────────────────────────────────────────────
+pyyaml
+pdfplumber
+# Optional OCR fallback for scanned PDFs:
+#   pip install pytesseract Pillow pymupdf pdf2image
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+flask
+streamlit          # fallback: streamlit run dashboard/app.py
+
+# ── BLE (HRV via HeartCast, GSR + IMU via Arduino) ───────────────────────────
+bleak
+
+# ── EEG (OpenBCI Cyton or Muse) ───────────────────────────────────────────────
+brainflow          # OpenBCI Cyton streaming
+pylsl              # Lab Streaming Layer — Muse and generic LSL sources
+mne                # EEG preprocessing: filtering, artifact rejection, epoching
+
+# ── rPPG (webcam-based heart rate) ───────────────────────────────────────────
+opencv-python
+open-rppg
+# Optional Linux/CUDA acceleration:
+#   pip install jax[cuda]
+
+# ── Movement (MediaPipe pose/hands + sample entropy) ─────────────────────────
+mediapipe
+antropy            # sample entropy for movement irregularity
+
+# ── Speech ────────────────────────────────────────────────────────────────────
+librosa
+sounddevice        # microphone recording
+noisereduce        # background noise suppression before feature extraction
+
+# ── Keyboard / mouse ─────────────────────────────────────────────────────────
+pynput
+
+# ── Arduino serial fallback (if BLE unreliable day-of) ───────────────────────
+pyserial

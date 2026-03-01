@@ -1,0 +1,102 @@
+{
+  "classes": [
+    "angelman_syndrome",
+    "dravet_syndrome",
+    "rett_syndrome"
+  ],
+  "n_features": 55,
+  "n_training_samples": 960,
+  "training_mode": "synthetic_fused",
+  "quick": false,
+  "feature_groups": {
+    "eeg": 23,
+    "hrv": 4,
+    "movement": 7,
+    "speech": 6,
+    "hpo": 9,
+    "prior": 6
+  },
+  "feature_slices": {
+    "eeg": [
+      0,
+      23
+    ],
+    "hrv": [
+      23,
+      27
+    ],
+    "movement": [
+      27,
+      34
+    ],
+    "speech": [
+      34,
+      40
+    ],
+    "hpo": [
+      40,
+      49
+    ],
+    "prior": [
+      49,
+      55
+    ]
+  },
+  "feature_names": [
+    "delta_power",
+    "theta_power",
+    "alpha_power",
+    "beta_power",
+    "gamma_power",
+    "delta_theta_ratio",
+    "theta_alpha_ratio",
+    "dominant_freq",
+    "spike_rate",
+    "mean_coherence",
+    "frontal_coherence",
+    "pac_strength",
+    "background_slowing",
+    "per_channel_delta_1",
+    "per_channel_delta_2",
+    "per_channel_delta_3",
+    "per_channel_delta_4",
+    "per_channel_delta_5",
+    "per_channel_delta_6",
+    "per_channel_delta_7",
+    "per_channel_delta_8",
+    "per_channel_delta_9",
+    "per_channel_delta_10",
+    "sdnn",
+    "rmssd",
+    "pnn50",
+    "lf_hf",
+    "stereotypy_score",
+    "tremor_freq_hz",
+    "movement_irregularity",
+    "limb_rhythm_index",
+    "imu_accel_std_x",
+    "imu_accel_std_y",
+    "imu_accel_std_z",
+    "pitch_mean",
+    "pitch_std",
+    "speech_rhythm",
+    "mean_pause_dur",
+    "vocalization_rate",
+    "mfcc_clarity",
+    "hpo_hand_stereotypy",
+    "hpo_irregular_respiration",
+    "hpo_global_dev_delay",
+    "hpo_seizures",
+    "hpo_generalized_tonic_clonic",
+    "hpo_absent_speech",
+    "hpo_spasticity",
+    "hpo_autistic_behavior",
+    "hpo_severe_speech_impairment",
+    "has_testing",
+    "has_negative_test",
+    "prior_exome",
+    "has_vus",
+    "has_incomplete_panel",
+    "reanalysis_trigger_score"
+  ]
+}

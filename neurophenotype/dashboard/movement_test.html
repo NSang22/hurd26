@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroPhenotype — Movement Test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#070a11; --panel:#0e1521; --panel2:#121b2a; --line:rgba(120,150,201,.22);
+      --text:#ebf1fb; --muted:#90a0c0; --dim:#5f6f90; --green:#16e7a4; --amber:#f1ab49;
+      --cyan:#47cfff; --coral:#fb7e8f; --violet:#ab8cff;
+      --display:"DM Serif Display",serif; --ui:"Manrope",sans-serif; --mono:"JetBrains Mono",monospace;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100vh; color:var(--text); font-family:var(--ui); }
+    body {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(71,207,255,.08), transparent 28%),
+        radial-gradient(circle at 80% 12%, rgba(241,171,73,.06), transparent 26%),
+        linear-gradient(180deg, #05070b, #070a11 35%, #06080d);
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.4;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:34px 34px;
+    }
+    .shell { position:relative; z-index:1; min-height:100vh; display:grid; grid-template-rows:auto 1fr auto; }
+
+    /* Header */
+    header {
+      display:flex; justify-content:space-between; align-items:center; gap:16px;
+      padding:18px 26px; border-bottom:1px solid var(--line); background:rgba(6,8,13,.82); backdrop-filter:blur(12px);
+    }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .mark { width:28px; height:28px; border:1px solid rgba(22,231,164,.45); border-radius:8px; position:relative; box-shadow:0 0 18px rgba(22,231,164,.18); }
+    .mark::before, .mark::after { content:""; position:absolute; background:var(--green); }
+    .mark::before { left:5px; right:5px; top:13px; height:2px; }
+    .mark::after { top:5px; bottom:5px; left:13px; width:2px; }
+    h1 { margin:0; font-family:var(--display); font-size:1.52rem; font-weight:400; line-height:1; }
+    .tagline { font-family:var(--mono); font-size:.63rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+    nav { display:flex; gap:10px; }
+    nav a {
+      font-family:var(--mono); font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; text-decoration:none;
+      color:var(--muted); padding:8px 14px; border:1px solid rgba(120,150,201,.25); border-radius:999px;
+      transition:all .18s ease;
+    }
+    nav a:hover, nav a.active { color:var(--green); border-color:rgba(22,231,164,.45); }
+
+    /* Main layout */
+    main { display:grid; grid-template-columns:400px 1fr; gap:20px; padding:24px; max-width:1500px; margin:0 auto; width:100%; }
+    @media (max-width:1000px) { main { grid-template-columns:1fr; } }
+
+    .col { background:rgba(14,21,33,.9); border:1px solid var(--line); border-radius:20px; overflow:hidden; }
+    .col-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:16px 18px; border-bottom:1px solid var(--line); }
+    .eyebrow { font-family:var(--mono); font-size:.62rem; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
+    .body { padding:20px; }
+    .stack { display:grid; gap:16px; }
+    .card { padding:16px; border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,.008)); }
+    .card h3 { margin:0 0 12px; font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+    label { display:grid; gap:6px; font-size:.72rem; color:var(--muted); }
+    select {
+      width:100%; border:1px solid rgba(120,150,201,.34); background:#0a101a; color:var(--text);
+      border-radius:10px; padding:10px 12px; font:inherit;
+    }
+    button {
+      border:0; cursor:pointer; border-radius:999px; padding:12px 18px; font-family:var(--mono); font-size:.64rem;
+      letter-spacing:.14em; text-transform:uppercase; transition:transform .18s ease, box-shadow .18s ease;
+    }
+    button:hover { transform:translateY(-1px); }
+    button:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+    .btn-primary { background:var(--green); color:#04130d; box-shadow:0 0 18px rgba(22,231,164,.25); }
+    .btn-secondary { background:transparent; color:var(--text); border:1px solid rgba(120,150,201,.34); }
+    .btn-coral { background:var(--coral); color:#1a0508; box-shadow:0 0 14px rgba(251,126,143,.2); }
+    .btn-cyan { background:var(--cyan); color:#021318; box-shadow:0 0 14px rgba(71,207,255,.2); }
+
+    /* Instructions */
+    .instructions {
+      padding:18px; border-radius:16px; border:1px solid rgba(241,171,73,.2);
+      background:linear-gradient(135deg, rgba(241,171,73,.06), transparent 60%);
+      line-height:1.8; font-size:.86rem; color:var(--muted);
+    }
+    .instructions strong { color:var(--text); }
+    .task-action {
+      margin-top:14px; padding:16px; border-radius:12px; background:rgba(241,171,73,.08);
+      border:1px solid rgba(241,171,73,.18); font-family:var(--display); font-size:1.1rem;
+      color:var(--amber); line-height:1.4; text-align:center;
+    }
+    .step-list { margin:12px 0 0; padding-left:18px; }
+    .step-list li { margin-bottom:8px; }
+    .detail-box {
+      margin-top:14px; padding:14px; border-radius:12px; border:1px solid var(--line);
+      background:rgba(10,16,26,.7); font-size:.78rem; color:var(--muted); line-height:1.7;
+    }
+    .detail-box h4 { margin:0 0 8px; font-family:var(--mono); font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+
+    /* Webcam preview area */
+    .capture-area {
+      border-radius:16px; border:1px solid var(--line); background:#060a12;
+      overflow:hidden; position:relative; min-height:340px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+    }
+    .capture-area video {
+      width:100%; height:auto; display:block; border-radius:16px;
+      transform:scaleX(-1);  /* mirror */
+    }
+    .overlay-badge {
+      position:absolute; top:14px; left:14px;
+      font-family:var(--mono); font-size:.58rem; letter-spacing:.12em; text-transform:uppercase;
+      padding:5px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted);
+      background:rgba(6,10,18,.85); backdrop-filter:blur(6px); z-index:3;
+    }
+    .overlay-badge.recording { border-color:var(--coral); color:var(--coral); animation:pulse 1.2s infinite; }
+    .overlay-badge.processing { border-color:var(--amber); color:var(--amber); }
+    .overlay-badge.done { border-color:var(--green); color:var(--green); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .timer-overlay {
+      position:absolute; bottom:14px; right:14px;
+      font-family:var(--mono); font-size:1.2rem; color:var(--coral);
+      background:rgba(6,10,18,.85); backdrop-filter:blur(6px);
+      padding:6px 12px; border-radius:10px; border:1px solid rgba(251,126,143,.2); z-index:3;
+    }
+    .countdown-overlay {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      font-family:var(--display); font-size:4rem; color:var(--amber);
+      text-shadow:0 0 30px rgba(241,171,73,.4); z-index:4;
+      opacity:0; transition:opacity .3s;
+    }
+    .countdown-overlay.visible { opacity:1; }
+    .no-cam-msg {
+      font-family:var(--mono); font-size:.7rem; color:var(--dim); letter-spacing:.1em;
+    }
+
+    /* Feature results */
+    .feature-grid { display:grid; gap:10px; }
+    .feature-row {
+      display:flex; justify-content:space-between; align-items:center; padding:10px 14px;
+      border-radius:12px; border:1px solid var(--line); background:#080d17;
+    }
+    .feature-name { font-size:.78rem; color:var(--muted); }
+    .feature-value { font-family:var(--mono); font-size:.88rem; font-weight:700; color:var(--green); }
+
+    /* Fusion */
+    .fusion-status {
+      padding:16px; border-radius:14px; border:1px solid rgba(22,231,164,.2);
+      background:linear-gradient(135deg, rgba(22,231,164,.06), transparent 60%);
+      text-align:center;
+    }
+    .fusion-status .big { font-family:var(--display); font-size:1.3rem; margin-bottom:6px; }
+    .fusion-status .small { font-size:.78rem; color:var(--muted); }
+
+    footer { padding:12px 18px 20px; text-align:center; color:var(--dim); font-size:.72rem; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <h1>NeuroPhenotype</h1>
+        <div class="tagline">Movement — Motor Phenotype Test</div>
+      </div>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/speech-test">Speech Test</a>
+      <a href="/movement-test" class="active">Movement Test</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Left: Instructions + Controls -->
+    <aside class="col">
+      <div class="col-head"><div class="eyebrow">Movement Capture</div></div>
+      <div class="body stack">
+        <section class="card">
+          <h3>Select Task</h3>
+          <label>Movement task
+            <select id="movementTask">
+              <option value="open_close_fists">Open and close both fists</option>
+              <option value="hands_to_midline">Hands to midline and back</option>
+              <option value="wrist_rotations">Wrist rotations</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="instructions" id="instructionBox">
+          <strong>Instructions</strong>
+          <ol class="step-list">
+            <li>Select a movement task from the dropdown above.</li>
+            <li>Position yourself so your <strong>hands and upper body</strong> are visible in the camera preview.</li>
+            <li>Click <strong>Start Capture</strong> when ready — a 3-second countdown begins.</li>
+            <li>Perform the described action for the full duration.</li>
+            <li>The system tracks hand landmarks and analyzes with MediaPipe + IMU.</li>
+          </ol>
+          <div class="task-action" id="taskAction">
+            Open and close both fists repeatedly.
+          </div>
+          <div class="detail-box" id="detailBox">
+            <h4>What we're measuring</h4>
+            <p><strong>Stereotypy Score</strong> — Midline crossing rate. Rett (MECP2) patients show continuous midline hand-wringing, present in 100% of cases (Temudo et al. 2007).</p>
+            <p><strong>Tremor Frequency</strong> — Dominant tremor frequency from wrist IMU. Pathological 3–8 Hz band.</p>
+            <p><strong>Movement Irregularity</strong> — Sample entropy of hand trajectory. Low = repetitive stereotypy (Rett). High = jerky/excitable (Angelman).</p>
+            <p><strong>Limb Rhythm Index</strong> — Periodicity of upper limb motion. High rhythm + low irregularity = Rett pattern.</p>
+            <p><strong>IMU Acceleration (x/y/z)</strong> — Wrist accelerometer variability from Arduino Nano 33 BLE Sense (if connected).</p>
+          </div>
+        </section>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn-primary" id="startBtn" onclick="startCapture()">Start Capture</button>
+          <button class="btn-secondary" id="resetBtn" onclick="resetPage()" disabled>Reset</button>
+        </div>
+
+        <section class="card" id="fusionCard" style="display:none">
+          <h3>Send to Fusion</h3>
+          <p style="font-size:.78rem; color:var(--muted); margin:0 0 12px;">
+            Push extracted movement features into the ML fusion pipeline for combined analysis with other modalities.
+          </p>
+          <button class="btn-cyan" id="fuseBtn" onclick="sendToFusion()">Send Features to Fusion</button>
+        </section>
+
+        <section class="fusion-status" id="fusionStatus" style="display:none">
+          <div class="big" id="fusionResult">—</div>
+          <div class="small" id="fusionDetail">Fusion result will appear here.</div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- Right: Webcam + Results -->
+    <section class="col">
+      <div class="col-head"><div class="eyebrow">Live Capture &amp; Features</div></div>
+      <div class="body stack">
+        <section class="card">
+          <h3>Camera Preview</h3>
+          <div class="capture-area" id="captureArea">
+            <video id="webcamVideo" autoplay muted playsinline></video>
+            <div class="overlay-badge" id="statusBadge">Ready</div>
+            <div class="timer-overlay" id="timer" style="display:none">0:00</div>
+            <div class="countdown-overlay" id="countdown"></div>
+            <div class="no-cam-msg" id="noCamMsg" style="display:none;">
+              Camera preview unavailable. Server will use its local webcam for capture.
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:10px; align-items:center;">
+            <div style="font-family:var(--mono); font-size:.68rem; color:var(--dim);">
+              <span id="camStatus">Camera: checking...</span>
+            </div>
+            <div id="taskDuration" style="font-family:var(--mono); font-size:.72rem; color:var(--dim);">Duration: 10s</div>
+          </div>
+        </section>
+
+        <section class="card" id="featureCard" style="display:none">
+          <h3>Extracted Features</h3>
+          <div class="feature-grid" id="featureGrid"></div>
+        </section>
+
+        <section class="card" id="interpretCard" style="display:none">
+          <h3>Clinical Interpretation</h3>
+          <div style="font-size:.82rem; color:var(--muted); line-height:1.7;" id="interpretText"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>Movement features target motor phenotyping for MECP2 (Rett), UBE3A (Angelman), and SCN1A (Dravet) gene-associated disorders. For research use only.</footer>
+</div>
+
+<script>
+const TASKS = {
+  open_close_fists: {
+    action: "Open and close both fists repeatedly.",
+    duration: 10,
+    detail: "Keep both hands visible. Open your hands fully, then close into fists. Repeat at a natural pace."
+  },
+  hands_to_midline: {
+    action: "Bring both hands together to your body's midline, then move them apart. Repeat.",
+    duration: 12,
+    detail: "Start with arms at your sides. Bring hands together at chest level, then separate. This tests midline crossing — the hallmark stereotypy of Rett syndrome (MECP2)."
+  },
+  wrist_rotations: {
+    action: "Rotate your wrists in large circles, alternating hands.",
+    duration: 10,
+    detail: "Hold your hands up and rotate each wrist in circles. This measures motor coordination, rhythm, and tremor."
+  }
+};
+
+const FEATURE_LABELS = [
+  { key: "stereotypy_per_min", name: "Stereotypy (crossings/min)", desc: "Midline crossing rate — Rett hallmark" },
+  { key: "tremor_freq_hz", name: "Tremor Frequency (Hz)", desc: "Dominant tremor from IMU" },
+  { key: "movement_irregularity", name: "Movement Irregularity", desc: "Sample entropy of trajectory" },
+  { key: "limb_rhythm_index", name: "Limb Rhythm Index", desc: "Periodicity of upper limb motion" },
+  { key: "imu_accel_std_x", name: "IMU Accel Std X", desc: "Acceleration variability x-axis" },
+  { key: "imu_accel_std_y", name: "IMU Accel Std Y", desc: "Acceleration variability y-axis" },
+  { key: "imu_accel_std_z", name: "IMU Accel Std Z", desc: "Acceleration variability z-axis" }
+];
+
+let currentFeatures = null;
+let timerInterval = null;
+let camStream = null;
+
+function updateTask() {
+  const task = TASKS[document.getElementById("movementTask").value];
+  document.getElementById("taskAction").textContent = task.action;
+  document.getElementById("taskDuration").textContent = `Duration: ${task.duration}s`;
+}
+document.getElementById("movementTask").addEventListener("change", updateTask);
+
+// Start webcam preview (visual only — actual analysis is server-side)
+async function initCamera() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:"user" } });
+    document.getElementById("webcamVideo").srcObject = camStream;
+    document.getElementById("camStatus").textContent = "Camera: active (preview)";
+    document.getElementById("noCamMsg").style.display = "none";
+  } catch (e) {
+    document.getElementById("camStatus").textContent = "Camera: unavailable in browser";
+    document.getElementById("noCamMsg").style.display = "";
+    document.getElementById("webcamVideo").style.display = "none";
+  }
+}
+
+async function startCapture() {
+  const taskKey = document.getElementById("movementTask").value;
+  const task = TASKS[taskKey];
+
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("resetBtn").disabled = true;
+  document.getElementById("featureCard").style.display = "none";
+  document.getElementById("interpretCard").style.display = "none";
+  document.getElementById("fusionCard").style.display = "none";
+  document.getElementById("fusionStatus").style.display = "none";
+
+  const badge = document.getElementById("statusBadge");
+  const cdEl = document.getElementById("countdown");
+
+  // Countdown
+  badge.className = "overlay-badge";
+  badge.textContent = "Get ready...";
+  cdEl.classList.add("visible");
+  for (let i = 3; i >= 1; i--) {
+    cdEl.textContent = i;
+    await delay(1000);
+  }
+  cdEl.classList.remove("visible");
+
+  // Capturing
+  badge.className = "overlay-badge recording";
+  badge.textContent = "Capturing...";
+  document.getElementById("timer").style.display = "";
+  startTimer(task.duration);
+
+  // Server-side capture
+  let result;
+  try {
+    const resp = await fetch("/api/test/movement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task: taskKey })
+    });
+    result = await resp.json();
+  } catch (err) {
+    badge.className = "overlay-badge";
+    badge.textContent = "Error";
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("resetBtn").disabled = false;
+    alert("Server error: " + err.message);
+    clearInterval(timerInterval);
+    return;
+  }
+
+  clearInterval(timerInterval);
+
+  if (result.status === "ok") {
+    badge.className = "overlay-badge done";
+    badge.textContent = "Done";
+    currentFeatures = result.features;
+    renderFeatures(result.features);
+    renderInterpretation(result.features);
+    document.getElementById("fusionCard").style.display = "";
+  } else {
+    badge.className = "overlay-badge";
+    badge.textContent = "Error";
+    alert(result.message || "Unknown error");
+  }
+
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("resetBtn").disabled = false;
+}
+
+function renderFeatures(features) {
+  const grid = document.getElementById("featureGrid");
+  grid.innerHTML = "";
+  FEATURE_LABELS.forEach((f, i) => {
+    const val = features[i] != null ? features[i] : 0;
+    const row = document.createElement("div");
+    row.className = "feature-row";
+    row.innerHTML = `<div><div class="feature-name">${f.name}</div><div style="font-size:.65rem;color:var(--dim)">${f.desc}</div></div><div class="feature-value">${val.toFixed(4)}</div>`;
+    grid.appendChild(row);
+  });
+  document.getElementById("featureCard").style.display = "";
+}
+
+function renderInterpretation(features) {
+  const [stereotypy, tremor, irregularity, rhythm, stdX, stdY, stdZ] = features;
+  let lines = [];
+
+  if (stereotypy > 30)
+    lines.push(`<p><strong>High midline crossing rate (${stereotypy.toFixed(1)}/min)</strong> — strongly suggestive of Rett-type hand stereotypies (MECP2). Continuous midline hand-wringing is pathognomonic for Rett syndrome.</p>`);
+  else if (stereotypy > 10)
+    lines.push(`<p>Moderate midline crossing rate (${stereotypy.toFixed(1)}/min) — some repetitive hand movement detected.</p>`);
+  else
+    lines.push(`<p>Low midline crossing rate (${stereotypy.toFixed(1)}/min) — no prominent hand stereotypy detected.</p>`);
+
+  if (tremor > 3 && tremor < 8)
+    lines.push(`<p>Tremor frequency ${tremor.toFixed(1)} Hz — falls in the pathological tremor band (3–8 Hz).</p>`);
+  else if (tremor > 0.5)
+    lines.push(`<p>Tremor frequency ${tremor.toFixed(1)} Hz — outside the typical pathological range.</p>`);
+
+  if (irregularity < 0.1 && rhythm > 0.3)
+    lines.push("<p>Low irregularity + high rhythm — highly periodic movement pattern consistent with Rett stereotypies.</p>");
+  else if (irregularity > 0.5)
+    lines.push("<p>High movement irregularity — jerky, excitable motor pattern, consistent with Angelman (UBE3A) profile.</p>");
+
+  if (stdX + stdY + stdZ < 0.01)
+    lines.push("<p style='color:var(--dim)'>IMU data not detected — Arduino BLE wrist sensor may not be connected. Webcam features only.</p>");
+
+  document.getElementById("interpretText").innerHTML = lines.join("");
+  document.getElementById("interpretCard").style.display = "";
+}
+
+async function sendToFusion() {
+  if (!currentFeatures) return;
+  document.getElementById("fuseBtn").disabled = true;
+  document.getElementById("fusionStatus").style.display = "";
+  document.getElementById("fusionResult").textContent = "Processing...";
+  document.getElementById("fusionDetail").textContent = "Sending movement features to ML fusion pipeline...";
+
+  try {
+    const resp = await fetch("/api/fuse-modality", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modality: "movement", features: currentFeatures })
+    });
+    const data = await resp.json();
+    if (data.status === "ok") {
+      document.getElementById("fusionResult").textContent = "Fused Successfully";
+      document.getElementById("fusionResult").style.color = "var(--green)";
+      const top = data.top_condition || "unknown";
+      const prob = data.top_probability != null ? (data.top_probability * 100).toFixed(1) + "%" : "—";
+      document.getElementById("fusionDetail").textContent =
+        `Top match: ${top.replace(/_/g, " ")} (${prob}). Features stored for combined analysis.`;
+    } else {
+      document.getElementById("fusionResult").textContent = "Stored for Fusion";
+      document.getElementById("fusionResult").style.color = "var(--amber)";
+      document.getElementById("fusionDetail").textContent = data.message || "Features stored. Run full pipeline from dashboard for combined results.";
+    }
+  } catch (err) {
+    document.getElementById("fusionResult").textContent = "Error";
+    document.getElementById("fusionResult").style.color = "var(--coral)";
+    document.getElementById("fusionDetail").textContent = err.message;
+  }
+  document.getElementById("fuseBtn").disabled = false;
+}
+
+function startTimer(duration) {
+  let elapsed = 0;
+  document.getElementById("timer").textContent = "0:00";
+  timerInterval = setInterval(() => {
+    elapsed++;
+    const m = Math.floor(elapsed / 60);
+    const s = String(elapsed % 60).padStart(2, "0");
+    document.getElementById("timer").textContent = `${m}:${s}`;
+    if (elapsed >= duration) clearInterval(timerInterval);
+  }, 1000);
+}
+
+function resetPage() {
+  clearInterval(timerInterval);
+  currentFeatures = null;
+  document.getElementById("timer").textContent = "0:00";
+  document.getElementById("timer").style.display = "none";
+  document.getElementById("statusBadge").className = "overlay-badge";
+  document.getElementById("statusBadge").textContent = "Ready";
+  document.getElementById("featureCard").style.display = "none";
+  document.getElementById("interpretCard").style.display = "none";
+  document.getElementById("fusionCard").style.display = "none";
+  document.getElementById("fusionStatus").style.display = "none";
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("resetBtn").disabled = false;
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+updateTask();
+initCamera();
+</script>
+</body>
+</html>

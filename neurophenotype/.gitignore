@@ -1,4 +1,4 @@
-data/private/
+data/public/
 *.pkl
 __pycache__/
 *.pyc

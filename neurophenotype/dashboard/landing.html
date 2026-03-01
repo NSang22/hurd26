@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroPhenotype Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#06090f; --panel:#101725; --line:rgba(117,149,201,.22); --text:#eaf0fb; --muted:#95a2bf;
+      --green:#18e8a6; --amber:#f0ae4a; --cyan:#4bcfff; --coral:#fb8191;
+      --display:"DM Serif Display",serif; --ui:"Manrope",sans-serif; --mono:"JetBrains Mono",monospace;
+    }
+    * { box-sizing:border-box; }
+    html, body { margin:0; min-height:100%; font-family:var(--ui); color:var(--text); }
+    body {
+      background:
+        radial-gradient(circle at 15% 10%, rgba(75,207,255,.08), transparent 24%),
+        radial-gradient(circle at 85% 14%, rgba(240,174,74,.07), transparent 22%),
+        radial-gradient(circle at 50% 100%, rgba(24,232,166,.05), transparent 28%),
+        linear-gradient(180deg, #05070b, #06090f 40%, #070b11);
+      display:grid;
+      place-items:center;
+      padding:24px;
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.38;
+      background-image:
+        linear-gradient(rgba(255,255,255,.016) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.016) 1px, transparent 1px);
+      background-size:34px 34px;
+    }
+    .shell {
+      position:relative; z-index:1; width:min(1180px, 100%); display:grid; grid-template-columns:1.1fr .9fr;
+      border:1px solid var(--line); border-radius:28px; overflow:hidden; background:rgba(9,13,20,.82); backdrop-filter:blur(14px);
+      box-shadow:0 30px 90px rgba(0,0,0,.35);
+    }
+    .hero {
+      padding:48px 42px;
+      background:
+        linear-gradient(135deg, rgba(24,232,166,.08), transparent 50%),
+        linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+      border-right:1px solid var(--line);
+    }
+    .mark {
+      width:34px; height:34px; border-radius:10px; border:1px solid rgba(24,232,166,.45); position:relative;
+      box-shadow:0 0 20px rgba(24,232,166,.16);
+    }
+    .mark::before, .mark::after { content:""; position:absolute; background:var(--green); }
+    .mark::before { left:6px; right:6px; top:16px; height:2px; }
+    .mark::after { top:6px; bottom:6px; left:16px; width:2px; }
+    .eyebrow {
+      margin-top:22px; font-family:var(--mono); font-size:.64rem; letter-spacing:.18em; text-transform:uppercase; color:var(--green);
+    }
+    h1 {
+      margin:10px 0 0; font-family:var(--display); font-weight:400; font-size:3.2rem; line-height:.95; max-width:500px;
+    }
+    .copy {
+      margin-top:18px; max-width:520px; color:var(--muted); line-height:1.8; font-size:.96rem;
+    }
+    .track-list {
+      margin-top:28px; display:grid; gap:12px;
+    }
+    .track-item {
+      display:grid; grid-template-columns:110px 1fr; gap:14px; align-items:start; padding:10px 0; border-bottom:1px solid rgba(117,149,201,.12);
+    }
+    .track-item:last-child { border-bottom:none; }
+    .track-label {
+      font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; color:var(--dim, #6a7796);
+    }
+    .track-value {
+      font-size:.84rem; color:var(--text); line-height:1.65;
+    }
+    .login-grid {
+      padding:28px; display:grid; gap:18px; background:rgba(16,23,37,.86);
+    }
+    .role-card {
+      border:1px solid var(--line); border-radius:20px; padding:18px; background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.008));
+    }
+    .role-card[data-role="doctor"] { box-shadow: inset 0 0 0 1px rgba(75,207,255,.06); }
+    .role-card[data-role="patient"] { box-shadow: inset 0 0 0 1px rgba(240,174,74,.05); }
+    .role-top {
+      display:flex; justify-content:space-between; gap:12px; align-items:start;
+    }
+    .role-name {
+      font-family:var(--display); font-size:1.5rem; line-height:1; font-weight:400;
+    }
+    .role-chip {
+      font-family:var(--mono); font-size:.56rem; letter-spacing:.14em; text-transform:uppercase; border-radius:999px; padding:5px 9px;
+      border:1px solid rgba(255,255,255,.12); color:var(--muted);
+    }
+    .role-copy {
+      margin-top:10px; color:var(--muted); font-size:.8rem; line-height:1.7;
+    }
+    .form {
+      margin-top:14px; display:grid; gap:10px;
+    }
+    label {
+      display:grid; gap:6px; font-size:.72rem; color:var(--muted);
+    }
+    input {
+      width:100%; border:1px solid rgba(117,149,201,.3); background:#0b1019; color:var(--text); border-radius:12px; padding:10px 12px; font:inherit;
+    }
+    .btn-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+    button {
+      border:0; cursor:pointer; border-radius:999px; padding:11px 16px; font-family:var(--mono); font-size:.6rem;
+      letter-spacing:.14em; text-transform:uppercase; transition:transform .18s ease, box-shadow .18s ease;
+    }
+    button:hover { transform:translateY(-1px); }
+    .btn-primary { background:var(--green); color:#03120c; box-shadow:0 0 16px rgba(24,232,166,.2); }
+    .btn-google { background:transparent; color:var(--text); border:1px solid rgba(117,149,201,.3); }
+    .note {
+      margin-top:6px; font-size:.68rem; line-height:1.6; color:var(--muted);
+    }
+    @media (max-width: 980px) {
+      .shell { grid-template-columns:1fr; }
+      .hero { border-right:none; border-bottom:1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="mark"></div>
+      <div class="eyebrow">Genomic diagnostics track</div>
+      <h1>Two Perspectives. One Diagnostic Pathway.</h1>
+      <div class="copy">
+        NeuroPhenotype integrates structured clinical intake with objective physiological phenotyping to support genomic decision-making.
+      </div>
+      <div class="track-list">
+        <div class="track-item">
+          <div class="track-label">Clinician Mode</div>
+          <div class="track-value">Advanced intake, phenotype scoring, reanalysis triggers, and structured next-step recommendations.</div>
+        </div>
+        <div class="track-item">
+          <div class="track-label">Patient View</div>
+          <div class="track-value">A clear summary of findings, confidence, and recommended actions - designed for families navigating the diagnostic journey.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="login-grid">
+      <div class="role-card" data-role="doctor">
+        <div class="role-top">
+          <div class="role-name">Doctor Sign In</div>
+          <div class="role-chip">Full Access</div>
+        </div>
+        <div class="role-copy">
+          Use the clinician console to review biosignal evidence, structured phenotype input, and the recommended genomic next step.
+        </div>
+        <div class="form">
+          <label>Username<input id="doctorUser" type="text" placeholder="doctor@clinic.org" /></label>
+          <label>Password<input id="doctorPass" type="password" placeholder="Enter password" /></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="goToDashboard('doctor')">Sign In</button>
+          <button class="btn-google" onclick="goToDashboard('doctor')">Sign In with Google</button>
+        </div>
+        <div class="note">This is a lightweight demo sign-in. It routes by role and does not perform real authentication.</div>
+      </div>
+
+      <div class="role-card" data-role="patient">
+        <div class="role-top">
+          <div class="role-name">Patient / Guardian Sign In</div>
+          <div class="role-chip">Simplified View</div>
+        </div>
+        <div class="role-copy">
+          Use the family-facing view for a simpler explanation of the assessment, the likely next step, and what that means.
+        </div>
+        <div class="form">
+          <label>Username<input id="patientUser" type="text" placeholder="family@example.com" /></label>
+          <label>Password<input id="patientPass" type="password" placeholder="Enter password" /></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="goToDashboard('patient')">Sign In</button>
+          <button class="btn-google" onclick="goToDashboard('patient')">Sign In with Google</button>
+        </div>
+        <div class="note">This role hides most clinical detail and reduces the interface to the essentials.</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    function goToDashboard(role) {
+      const params = new URLSearchParams({ role });
+      window.location.href = `/dashboard?${params.toString()}`;
+    }
+  </script>
+</body>
+</html>

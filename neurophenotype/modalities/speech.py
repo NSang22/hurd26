@@ -45,8 +45,23 @@ except ImportError:
     SOUNDDEVICE_AVAILABLE = False
 
 SAMPLE_RATE     = 22050    # Hz — standard librosa SR
-COLLECTION_SECONDS = 30    # 30s captures enough speech for stable features
+COLLECTION_SECONDS = 10
 FEATURE_DIM     = 6
+
+TASK_CONFIG = {
+    "repeat_phrase": {
+        "prompt": "Please say the following phrase:\n  \"The quick brown fox jumps over the lazy dog\"",
+        "duration": 10,
+    },
+    "count_1_10": {
+        "prompt": "Please count from 1 to 10 repeatedly.",
+        "duration": 10,
+    },
+    "describe_prompt": {
+        "prompt": "Please describe what you see around you.",
+        "duration": 12,
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -216,15 +231,37 @@ class SpeechModality(BaseModality):
     """
     FEATURE_DIM = FEATURE_DIM
 
-    def __init__(self, duration: int = COLLECTION_SECONDS, mock_profile: str = None):
-        self.duration = duration
+    def __init__(self, mock_profile: str = None, task: str = "repeat_phrase",
+                 mic_delay: float = 0.0, skip_countdown: bool = False):
+        task_cfg = TASK_CONFIG.get(task, TASK_CONFIG["repeat_phrase"])
+        self.duration = task_cfg["duration"]
+        self._task_prompt = task_cfg["prompt"]
         self.mock_profile = mock_profile
+        self.mic_delay = mic_delay
+        self.skip_countdown = skip_countdown
 
     def collect(self) -> np.ndarray:
         if self.mock_profile:
             return self._mock_audio(self.mock_profile)
         if not LIBROSA_AVAILABLE:
             raise ImportError("pip install librosa sounddevice")
+
+        # Optional delay to let the OS release the mic device (Windows
+        # exclusive-lock issue when the browser just freed getUserMedia).
+        if self.mic_delay > 0:
+            import time
+            print(f"[Speech] Waiting {self.mic_delay}s for mic release...")
+            time.sleep(self.mic_delay)
+
+        if not self.skip_countdown:
+            print(f"\n[Speech] {self._task_prompt}")
+            import time
+            for i in range(3, 0, -1):
+                print(f"[Speech] Recording in {i}...")
+                time.sleep(1)
+        else:
+            print(f"[Speech] {self._task_prompt} (countdown handled by client)")
+
         return _collect_audio(self.duration, SAMPLE_RATE)
 
     def preprocess(self, raw_data: np.ndarray) -> np.ndarray:

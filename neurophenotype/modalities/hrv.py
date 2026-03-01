@@ -5,7 +5,23 @@ Hardware: Apple Watch via HeartCast app (BLE Heart Rate Profile, UUID 0x180D)
 Scans for any BLE device advertising the Heart Rate Service UUID, connects,
 and streams RR intervals from the 0x2A37 characteristic to compute HRV features.
 
-Features: SDNN, RMSSD, pNN50, LF/HF ratio (sympathovagal balance)
+FEATURE VECTOR (length 7):
+  [0] SDNN      — global HRV; reduced in Rett (MECP2 brainstem disruption)
+  [1] RMSSD     — parasympathetic tone; vagal withdrawal in Rett
+  [2] pNN50     — parasympathetic index
+  [3] LF/HF     — sympathovagal balance; sympathetic dominance in Rett (Julu 2017)
+  [4] mean_hr   — mean heart rate BPM
+  [5] hr_std    — HR variability proxy (complements SDNN)
+  [6] sdnn_norm — SDNN normalized by mean RR (corrects for HR confound)
+
+Genomic relevance:
+  MECP2 mutations disrupt brainstem autonomic centers (nucleus tractus solitarius,
+  dorsal motor nucleus of vagus). Rett patients show:
+    - Reduced global HRV (SDNN, RMSSD): Frontiers Neuroscience 2023
+    - Sympathovagal shift: elevated LF/HF, reduced pNN50: Julu et al. 2017
+    - Discordant autonomic profiles correlating with MECP2 mutation subtype: Singh 2024
+  SCN1A (Dravet): autonomic dysregulation during and between seizures.
+  UBE3A (Angelman): autonomic features less studied; EEG primary classifier for AS.
 
 Requirements:
     pip install bleak scipy numpy
@@ -15,32 +31,31 @@ import struct
 import numpy as np
 from scipy.signal import welch
 from scipy.interpolate import interp1d
-from bleak import BleakScanner, BleakClient
 
 try:
-    from .base import BaseModality  # imported as part of package
+    from bleak import BleakScanner, BleakClient
+    BLEAK_AVAILABLE = True
 except ImportError:
-    from base import BaseModality   # run directly: python hrv.py
+    BLEAK_AVAILABLE = False
 
-# Standard BLE GATT Heart Rate Profile
-HR_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
+try:
+    from .base import BaseModality
+except ImportError:
+    from base import BaseModality
+
+HR_SERVICE_UUID     = "0000180d-0000-1000-8000-00805f9b34fb"
 HR_MEASUREMENT_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
+COLLECTION_SECONDS  = 10
+FEATURE_DIM         = 7
 
-# How long to collect RR intervals (seconds). 60s gives good LF/HF resolution.
-COLLECTION_SECONDS = 60
 
+# ---------------------------------------------------------------------------
+# Parsing
+# ---------------------------------------------------------------------------
 
-# ── Parsing ────────────────────────────────────────────────────────────────────
-
-def _parse_hr_measurement(data: bytearray) -> tuple[int, list[float]]:
+def _parse_hr_measurement(data: bytearray) -> tuple:
     """
-    Parse BLE Heart Rate Measurement characteristic (0x2A37).
-
-    Byte 0: flags
-      bit 0  — HR format: 0=UINT8, 1=UINT16
-      bit 4  — RR intervals present
-
-    RR intervals are UINT16 in units of 1/1024 seconds → convert to ms.
+    Parse BLE Heart Rate Measurement (0x2A37).
     Returns (heart_rate_bpm, [rr_interval_ms, ...])
     """
     flags = data[0]
@@ -66,88 +81,122 @@ def _parse_hr_measurement(data: bytearray) -> tuple[int, list[float]]:
     return hr, rr_intervals_ms
 
 
-# ── Feature computation ────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Feature computation
+# ---------------------------------------------------------------------------
 
-def _compute_hrv_features(rr_ms: list[float]) -> np.ndarray:
+def _compute_hrv_features(rr_ms: list, hr_readings: list = None) -> np.ndarray:
     """
     Compute time-domain and frequency-domain HRV features.
-    Returns [SDNN, RMSSD, pNN50, LF_HF_ratio]
+    Returns feature vector of length FEATURE_DIM.
     """
-    rr = np.array(rr_ms)
+    rr = np.array(rr_ms, dtype=np.float64)
 
-    # Time domain
-    sdnn = float(np.std(rr, ddof=1))
-    successive_diffs = np.diff(rr)
-    rmssd = float(np.sqrt(np.mean(successive_diffs ** 2)))
-    pnn50 = float(np.sum(np.abs(successive_diffs) > 50) / len(successive_diffs) * 100)
+    if len(rr) < 4:
+        return np.zeros(FEATURE_DIM, dtype=np.float32)
 
-    # Frequency domain — resample to 4 Hz tachogram, then Welch PSD
-    cumtime = np.cumsum(rr) / 1000.0  # seconds
+    # ── Time domain ──────────────────────────────────────────────────────────
+    sdnn  = float(np.std(rr, ddof=1))
+    diffs = np.diff(rr)
+    rmssd = float(np.sqrt(np.mean(diffs ** 2)))
+    pnn50 = float(np.sum(np.abs(diffs) > 50) / len(diffs) * 100)
+
+    mean_rr  = float(np.mean(rr))
+    mean_hr  = 60000.0 / mean_rr   # convert ms to BPM
+    sdnn_norm = sdnn / mean_rr      # normalized SDNN (dimensionless, removes HR confound)
+
+    # HR std from BPM readings if available, else derive from RR
+    if hr_readings and len(hr_readings) > 1:
+        hr_std = float(np.std(hr_readings))
+    else:
+        hr_from_rr = 60000.0 / rr
+        hr_std = float(np.std(hr_from_rr))
+
+    # ── Frequency domain — LF/HF ─────────────────────────────────────────────
+    cumtime  = np.cumsum(rr) / 1000.0   # seconds
     duration = cumtime[-1]
-    fs = 4.0
+    fs       = 4.0
     t_uniform = np.arange(0, duration, 1.0 / fs)
 
-    if len(rr) >= 4 and duration > 20:
-        interp = interp1d(cumtime, rr, kind="cubic", bounds_error=False, fill_value="extrapolate")
-        rr_uniform = interp(t_uniform)
-        freqs, psd = welch(rr_uniform, fs=fs, nperseg=min(256, len(rr_uniform)))
-        lf_mask = (freqs >= 0.04) & (freqs < 0.15)
-        hf_mask = (freqs >= 0.15) & (freqs < 0.40)
-        lf_power = np.trapz(psd[lf_mask], freqs[lf_mask])
-        hf_power = np.trapz(psd[hf_mask], freqs[hf_mask])
-        lf_hf = float(lf_power / hf_power) if hf_power > 0 else 0.0
+    if len(rr) >= 8 and duration > 20 and len(t_uniform) > 32:
+        try:
+            interp    = interp1d(cumtime, rr, kind="cubic",
+                                 bounds_error=False, fill_value="extrapolate")
+            rr_uniform = interp(t_uniform)
+            freqs, psd = welch(rr_uniform, fs=fs,
+                               nperseg=min(256, len(rr_uniform)))
+            lf_mask = (freqs >= 0.04) & (freqs < 0.15)
+            hf_mask = (freqs >= 0.15) & (freqs < 0.40)
+            lf_power = float(np.trapz(psd[lf_mask], freqs[lf_mask]))
+            hf_power = float(np.trapz(psd[hf_mask], freqs[hf_mask]))
+            lf_hf = lf_power / hf_power if hf_power > 1e-8 else 0.0
+        except Exception:
+            lf_hf = 0.0
     else:
         lf_hf = 0.0
 
-    return np.array([sdnn, rmssd, pnn50, lf_hf], dtype=np.float32)
+    return np.array(
+        [sdnn, rmssd, pnn50, lf_hf, mean_hr, hr_std, sdnn_norm],
+        dtype=np.float32
+    )
 
 
-# ── BLE scanning ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# BLE scanning
+# ---------------------------------------------------------------------------
 
 async def _scan_for_hr_device(timeout: float = 10.0):
-    """
-    Scan for a BLE device advertising the Heart Rate Service UUID.
-    Falls back to name matching if UUID not in advertisement data.
-    """
-    print("Scanning for BLE Heart Rate devices...")
     devices = await BleakScanner.discover(timeout=timeout, return_adv=True)
 
-    # Primary: match by advertised service UUID (most reliable)
     for _, (device, adv_data) in devices.items():
         if HR_SERVICE_UUID in [u.lower() for u in adv_data.service_uuids]:
-            print(f"Found HR device: {device.name} ({device.address})")
+            print(f"[HRV] Found HR device: {device.name} ({device.address})")
             return device
 
-    # Fallback: match by device name keywords
     for _, (device, adv_data) in devices.items():
-        if device.name and any(kw in device.name.lower() for kw in ["heart", "watch", "apple", "hrm"]):
-            print(f"Found likely HR device by name: {device.name} ({device.address})")
+        if device.name and any(
+            kw in device.name.lower() for kw in ["heart", "watch", "apple", "hrm"]
+        ):
+            print(f"[HRV] Found likely HR device by name: {device.name} ({device.address})")
             return device
 
     return None
 
 
-# ── Modality class ─────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Modality class
+# ---------------------------------------------------------------------------
 
 class HRVModality(BaseModality):
     """
-    Connects to HeartCast BLE peripheral, collects RR intervals for
-    COLLECTION_SECONDS, then computes HRV feature vector.
+    Connects to Apple Watch via BLE, collects RR intervals, computes HRV features.
+
+    Args:
+        duration:      Collection duration in seconds (default 60).
+        mock_profile:  If set, skip BLE and return a synthetic profile.
+                       Options: "rett", "dravet", "angelman", "normal"
     """
-    FEATURE_DIM = 4  # [SDNN, RMSSD, pNN50, LF/HF]
+    FEATURE_DIM = FEATURE_DIM
 
-    def __init__(self, duration: int = COLLECTION_SECONDS):
+    def __init__(self, duration: int = COLLECTION_SECONDS, mock_profile: str = None):
         self.duration = duration
+        self.mock_profile = mock_profile
+        self._hr_readings: list = []
 
-    def collect(self) -> list[float]:
-        """Scan for HR BLE device and stream RR intervals."""
-        return asyncio.run(self._collect_async())
+    def collect(self) -> list:
+        if self.mock_profile:
+            return self._mock_rr(self.mock_profile)
+        if not BLEAK_AVAILABLE:
+            raise ImportError("pip install bleak for live HRV collection.")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(self._collect_async())
+        finally:
+            loop.close()    
 
-    def preprocess(self, raw_data: list[float]) -> list[float]:
-        """
-        Filter physiologically implausible RR intervals (300–2000 ms)
-        and remove ectopic beats via moving median filter (>20% deviation).
-        """
+    def preprocess(self, raw_data: list) -> list:
+        """Filter implausible RR intervals and remove ectopic beats."""
         rr = np.array(raw_data)
         rr = rr[(rr >= 300) & (rr <= 2000)]
 
@@ -161,23 +210,28 @@ class HRVModality(BaseModality):
             hi = min(len(rr), i + window // 2 + 1)
             median = np.median(rr[lo:hi])
             if abs(val - median) / median < 0.20:
-                filtered.append(val)
+                filtered.append(float(val))
 
         return filtered
 
-    def extract_features(self, processed_data: list[float]) -> np.ndarray:
+    def extract_features(self, processed_data: list) -> np.ndarray:
         if len(processed_data) < 10:
-            print(f"[HRV] Warning: only {len(processed_data)} clean RR intervals — features may be unreliable")
-        return _compute_hrv_features(processed_data)
+            print(f"[HRV] Warning: only {len(processed_data)} clean RR intervals")
+        return _compute_hrv_features(processed_data, self._hr_readings)
 
-    async def _collect_async(self) -> list[float]:
-        rr_buffer: list[float] = []
+    # ── Async BLE collection ─────────────────────────────────────────────────
 
-        while True:
-            device = await _scan_for_hr_device()
+    async def _collect_async(self) -> list:
+        rr_buffer: list = []
+        self._hr_readings = []
+
+        MAX_RETRIES = 2
+        for attempt in range(MAX_RETRIES):
+            device = await _scan_for_hr_device(timeout=4.0)
             if not device:
-                print("No HR device found. Retrying in 5s...")
-                await asyncio.sleep(5)
+                print(f"[HRV] No HR device found (attempt {attempt+1}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(2)
                 continue
 
             try:
@@ -187,44 +241,95 @@ class HRVModality(BaseModality):
                     def on_notification(sender, data):
                         hr, rr_list = _parse_hr_measurement(data)
                         rr_buffer.extend(rr_list)
-                        print(f"Apple Watch HR: {hr} BPM  (+{len(rr_list)} RR intervals)")
+                        self._hr_readings.append(hr)
 
                     await client.start_notify(HR_MEASUREMENT_UUID, on_notification)
                     await asyncio.sleep(self.duration)
                     await client.stop_notify(HR_MEASUREMENT_UUID)
-                    break  # collection complete — exit retry loop
+                    break  # success
 
             except Exception as e:
-                print(f"[HRV] BLE connection error: {e}")
-                print("[HRV] Reconnecting in 3s...")
-                await asyncio.sleep(3)
+                print(f"[HRV] BLE error: {e}")
 
-        print(f"[HRV] Collected {len(rr_buffer)} RR intervals")
+        if not rr_buffer:
+            print("[HRV] No HR device found after retries — using zeros in fusion")
         return rr_buffer
 
+    # ── Mock profiles (for demo / training without hardware) ─────────────────
 
-# ── Standalone test ────────────────────────────────────────────────────────────
+    def _mock_rr(self, profile: str) -> list:
+        """
+        Generate synthetic RR intervals matching known autonomic profiles.
+
+        Rett:     Reduced HRV, sympathetic dominance (Julu 2017)
+                  Low SDNN/RMSSD, elevated LF/HF, elevated HR
+        Dravet:   Moderate autonomic disruption, variable
+        Angelman: Less studied autonomically; use near-normal profile
+        Normal:   Healthy HRV
+        """
+        rng = np.random.default_rng({"rett": 10, "dravet": 11,
+                                     "angelman": 12, "normal": 13}.get(profile, 0))
+        n = int(self.duration * 1000 / 800)  # ~1.25 beats/sec baseline
+
+        if profile == "rett":
+            # Low HRV, high HR, sympathetic dominance
+            mean_rr = 650.0   # ~92 BPM (elevated HR)
+            std_rr  = 12.0    # very low variability
+        elif profile == "dravet":
+            mean_rr = 720.0   # ~83 BPM
+            std_rr  = 28.0
+        elif profile == "angelman":
+            mean_rr = 780.0   # ~77 BPM
+            std_rr  = 35.0
+        else:  # normal
+            mean_rr = 850.0   # ~71 BPM
+            std_rr  = 55.0    # healthy HRV
+
+        rr = rng.normal(mean_rr, std_rr, n)
+        # Add low-frequency oscillation for LF/HF computation
+        t = np.linspace(0, self.duration, n)
+        if profile == "rett":
+            # Exaggerated LF (sympathetic), suppressed HF (vagal withdrawal)
+            rr += 8.0 * np.sin(2 * np.pi * 0.08 * t)   # LF component
+            rr += 2.0 * np.sin(2 * np.pi * 0.25 * t)   # minimal HF
+        else:
+            rr += 4.0 * np.sin(2 * np.pi * 0.08 * t)
+            rr += 6.0 * np.sin(2 * np.pi * 0.25 * t)
+
+        return list(np.clip(rr, 300, 2000))
+
+
+# ---------------------------------------------------------------------------
+# Standalone test
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Test HRV collection from Apple Watch via BLE")
-    parser.add_argument("--duration", type=int, default=30, help="Collection duration in seconds")
-    parser.add_argument("--scan-only", action="store_true", help="List nearby BLE devices and exit")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--duration", type=int, default=30)
+    parser.add_argument("--mock", choices=["rett", "dravet", "angelman", "normal"],
+                        help="Use synthetic profile instead of BLE")
+    parser.add_argument("--scan-only", action="store_true")
     args = parser.parse_args()
 
     if args.scan_only:
         async def scan():
-            print("Scanning for BLE devices (10s)...")
             devices = await BleakScanner.discover(timeout=10.0, return_adv=True)
             for _, (d, adv) in sorted(devices.items(), key=lambda x: x[1][0].name or ""):
-                hr_flag = "  *** HR SERVICE ***" if HR_SERVICE_UUID in [u.lower() for u in adv.service_uuids] else ""
+                hr_flag = "  *** HR SERVICE ***" if HR_SERVICE_UUID in [
+                    u.lower() for u in adv.service_uuids] else ""
                 print(f"  {(d.name or '(unnamed)'):30s}  {d.address}{hr_flag}")
         asyncio.run(scan())
+
     else:
-        hrv = HRVModality(duration=args.duration)
+        hrv = HRVModality(
+            duration=args.duration,
+            mock_profile=args.mock,
+        )
         features = hrv.run()
-        labels = ["SDNN", "RMSSD", "pNN50", "LF/HF"]
+        labels = ["SDNN", "RMSSD", "pNN50", "LF/HF", "mean_HR", "HR_std", "SDNN_norm"]
         print("\n── HRV Feature Vector ──")
         for label, val in zip(labels, features):
-            print(f"  {label:8s}: {val:.4f}")
+            print(f"  {label:12s}: {val:.4f}")
+        print(f"\nTotal features: {len(features)} (expected {FEATURE_DIM})")

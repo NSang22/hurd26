@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroPhenotype — Speech Test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#070a11; --panel:#0e1521; --panel2:#121b2a; --line:rgba(120,150,201,.22);
+      --text:#ebf1fb; --muted:#90a0c0; --dim:#5f6f90; --green:#16e7a4; --amber:#f1ab49;
+      --cyan:#47cfff; --coral:#fb7e8f; --violet:#ab8cff;
+      --display:"DM Serif Display",serif; --ui:"Manrope",sans-serif; --mono:"JetBrains Mono",monospace;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100vh; color:var(--text); font-family:var(--ui); }
+    body {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(71,207,255,.08), transparent 28%),
+        radial-gradient(circle at 80% 12%, rgba(241,171,73,.06), transparent 26%),
+        linear-gradient(180deg, #05070b, #070a11 35%, #06080d);
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.4;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:34px 34px;
+    }
+    .shell { position:relative; z-index:1; min-height:100vh; display:grid; grid-template-rows:auto 1fr auto; }
+
+    /* Header */
+    header {
+      display:flex; justify-content:space-between; align-items:center; gap:16px;
+      padding:18px 26px; border-bottom:1px solid var(--line); background:rgba(6,8,13,.82); backdrop-filter:blur(12px);
+    }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .mark { width:28px; height:28px; border:1px solid rgba(22,231,164,.45); border-radius:8px; position:relative; box-shadow:0 0 18px rgba(22,231,164,.18); }
+    .mark::before, .mark::after { content:""; position:absolute; background:var(--green); }
+    .mark::before { left:5px; right:5px; top:13px; height:2px; }
+    .mark::after { top:5px; bottom:5px; left:13px; width:2px; }
+    h1 { margin:0; font-family:var(--display); font-size:1.52rem; font-weight:400; line-height:1; }
+    .tagline { font-family:var(--mono); font-size:.63rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+    nav { display:flex; gap:10px; }
+    nav a {
+      font-family:var(--mono); font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; text-decoration:none;
+      color:var(--muted); padding:8px 14px; border:1px solid rgba(120,150,201,.25); border-radius:999px;
+      transition:all .18s ease;
+    }
+    nav a:hover, nav a.active { color:var(--green); border-color:rgba(22,231,164,.45); }
+
+    /* Main layout */
+    main { display:grid; grid-template-columns:380px 1fr; gap:20px; padding:24px; max-width:1400px; margin:0 auto; width:100%; }
+    @media (max-width:900px) { main { grid-template-columns:1fr; } }
+
+    .col { background:rgba(14,21,33,.9); border:1px solid var(--line); border-radius:20px; overflow:hidden; }
+    .col-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:16px 18px; border-bottom:1px solid var(--line); }
+    .eyebrow { font-family:var(--mono); font-size:.62rem; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
+    .body { padding:20px; }
+    .stack { display:grid; gap:16px; }
+    .card { padding:16px; border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,.008)); }
+    .card h3 { margin:0 0 12px; font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+    label { display:grid; gap:6px; font-size:.72rem; color:var(--muted); }
+    select {
+      width:100%; border:1px solid rgba(120,150,201,.34); background:#0a101a; color:var(--text);
+      border-radius:10px; padding:10px 12px; font:inherit;
+    }
+    button {
+      border:0; cursor:pointer; border-radius:999px; padding:12px 18px; font-family:var(--mono); font-size:.64rem;
+      letter-spacing:.14em; text-transform:uppercase; transition:transform .18s ease, box-shadow .18s ease;
+    }
+    button:hover { transform:translateY(-1px); }
+    button:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+    .btn-primary { background:var(--green); color:#04130d; box-shadow:0 0 18px rgba(22,231,164,.25); }
+    .btn-secondary { background:transparent; color:var(--text); border:1px solid rgba(120,150,201,.34); }
+    .btn-coral { background:var(--coral); color:#1a0508; box-shadow:0 0 14px rgba(251,126,143,.2); }
+    .btn-cyan { background:var(--cyan); color:#021318; box-shadow:0 0 14px rgba(71,207,255,.2); }
+
+    /* Instructions panel */
+    .instructions {
+      padding:18px; border-radius:16px; border:1px solid rgba(71,207,255,.2);
+      background:linear-gradient(135deg, rgba(71,207,255,.06), transparent 60%);
+      line-height:1.8; font-size:.88rem; color:var(--muted);
+    }
+    .instructions strong { color:var(--text); }
+    .instructions .prompt-text {
+      margin-top:12px; padding:14px; border-radius:12px; background:rgba(71,207,255,.08);
+      border:1px solid rgba(71,207,255,.15); font-family:var(--display); font-size:1.15rem;
+      color:var(--cyan); line-height:1.5; text-align:center;
+    }
+    .step-list { margin:12px 0 0; padding-left:18px; }
+    .step-list li { margin-bottom:6px; }
+
+    /* Audio waveform / status area */
+    .capture-area {
+      min-height:180px; border-radius:16px; border:1px solid var(--line);
+      background:#080d17; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:14px; position:relative; overflow:hidden;
+    }
+    .capture-area canvas { width:100%; height:120px; }
+    .status-badge {
+      font-family:var(--mono); font-size:.6rem; letter-spacing:.14em; text-transform:uppercase;
+      padding:6px 12px; border-radius:999px; border:1px solid var(--line); color:var(--muted);
+    }
+    .status-badge.recording { border-color:var(--coral); color:var(--coral); animation:pulse 1.2s infinite; }
+    .status-badge.processing { border-color:var(--amber); color:var(--amber); }
+    .status-badge.done { border-color:var(--green); color:var(--green); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    .countdown {
+      font-family:var(--display); font-size:3rem; color:var(--cyan); opacity:0;
+      transition:opacity .3s; position:absolute; z-index:2;
+    }
+    .countdown.visible { opacity:1; }
+
+    /* Feature results */
+    .feature-grid { display:grid; gap:10px; }
+    .feature-row {
+      display:flex; justify-content:space-between; align-items:center; padding:10px 14px;
+      border-radius:12px; border:1px solid var(--line); background:#080d17;
+    }
+    .feature-name { font-size:.78rem; color:var(--muted); }
+    .feature-value { font-family:var(--mono); font-size:.88rem; font-weight:700; color:var(--green); }
+
+    /* Fusion status */
+    .fusion-status {
+      padding:16px; border-radius:14px; border:1px solid rgba(22,231,164,.2);
+      background:linear-gradient(135deg, rgba(22,231,164,.06), transparent 60%);
+      text-align:center;
+    }
+    .fusion-status .big { font-family:var(--display); font-size:1.3rem; margin-bottom:6px; }
+    .fusion-status .small { font-size:.78rem; color:var(--muted); }
+
+    /* Timer */
+    .timer { font-family:var(--mono); font-size:1.4rem; color:var(--coral); }
+
+    footer { padding:12px 18px 20px; text-align:center; color:var(--dim); font-size:.72rem; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <h1>NeuroPhenotype</h1>
+        <div class="tagline">Speech — Vocal Biomarker Test</div>
+      </div>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/speech-test" class="active">Speech Test</a>
+      <a href="/movement-test">Movement Test</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Left: Instructions + Controls -->
+    <aside class="col">
+      <div class="col-head"><div class="eyebrow">Speech Capture</div></div>
+      <div class="body stack">
+        <section class="card">
+          <h3>Select Task</h3>
+          <label>Speech task
+            <select id="speechTask">
+              <option value="repeat_phrase">Repeat a fixed phrase</option>
+              <option value="count_1_10">Count from 1 to 10</option>
+              <option value="describe_prompt">Describe what you see</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="instructions" id="instructionBox">
+          <strong>Instructions</strong>
+          <ol class="step-list">
+            <li>Select a speech task from the dropdown above.</li>
+            <li>Click <strong>Start Recording</strong> when ready.</li>
+            <li>A 3-second countdown will begin, then recording starts.</li>
+            <li>Speak clearly into your microphone for the full duration.</li>
+            <li>Features are extracted automatically when recording stops.</li>
+          </ol>
+          <div class="prompt-text" id="promptText">
+            "The quick brown fox jumps over the lazy dog"
+          </div>
+        </section>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn-primary" id="startBtn" onclick="startCapture()">Start Recording</button>
+          <button class="btn-secondary" id="resetBtn" onclick="resetPage()" disabled>Reset</button>
+        </div>
+
+        <section class="card" id="fusionCard" style="display:none">
+          <h3>Send to Fusion</h3>
+          <p style="font-size:.78rem; color:var(--muted); margin:0 0 12px;">
+            Push extracted speech features into the ML fusion pipeline for combined analysis with other modalities.
+          </p>
+          <button class="btn-cyan" id="fuseBtn" onclick="sendToFusion()">Send Features to Fusion</button>
+        </section>
+
+        <section class="fusion-status" id="fusionStatus" style="display:none">
+          <div class="big" id="fusionResult">—</div>
+          <div class="small" id="fusionDetail">Fusion result will appear here.</div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- Right: Capture + Results -->
+    <section class="col">
+      <div class="col-head"><div class="eyebrow">Live Capture &amp; Features</div></div>
+      <div class="body stack">
+        <section class="card">
+          <h3>Audio Capture</h3>
+          <div class="capture-area" id="captureArea">
+            <canvas id="waveCanvas"></canvas>
+            <div class="countdown" id="countdown"></div>
+            <div class="status-badge" id="statusBadge">Ready</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <div class="timer" id="timer">0:00</div>
+            <div id="taskDuration" style="font-family:var(--mono); font-size:.72rem; color:var(--dim);">Duration: 10s</div>
+          </div>
+        </section>
+
+        <section class="card" id="featureCard" style="display:none">
+          <h3>Extracted Features</h3>
+          <div class="feature-grid" id="featureGrid"></div>
+        </section>
+
+        <section class="card" id="interpretCard" style="display:none">
+          <h3>Clinical Interpretation</h3>
+          <div style="font-size:.82rem; color:var(--muted); line-height:1.7;" id="interpretText"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>Speech features capture vocal biomarkers relevant to MECP2, UBE3A, and SCN1A gene-associated disorders. For research use only.</footer>
+</div>
+
+<script>
+const TASKS = {
+  repeat_phrase: {
+    prompt: '"The quick brown fox jumps over the lazy dog"',
+    duration: 10,
+    instruction: "Repeat the phrase below clearly and at a natural pace. You may repeat it multiple times."
+  },
+  count_1_10: {
+    prompt: '"1, 2, 3, 4, 5, 6, 7, 8, 9, 10"',
+    duration: 10,
+    instruction: "Count from 1 to 10 repeatedly at a steady pace."
+  },
+  describe_prompt: {
+    prompt: 'Describe the room or scene around you.',
+    duration: 12,
+    instruction: "Look around and describe what you see in full sentences."
+  }
+};
+
+const FEATURE_LABELS = [
+  { key: "pitch_mean_hz", name: "Pitch Mean (Hz)", desc: "Mean fundamental frequency" },
+  { key: "pitch_std_hz", name: "Pitch Variability (Hz)", desc: "Prosodic range" },
+  { key: "speech_rhythm", name: "Speech Rhythm", desc: "Tempo regularity (0–1)" },
+  { key: "mean_pause_s", name: "Mean Pause (s)", desc: "Average silence duration" },
+  { key: "vocalization_rate", name: "Vocalization Rate", desc: "Fraction of voiced frames" },
+  { key: "mfcc_clarity", name: "MFCC Clarity", desc: "Phoneme clarity index (0–1)" }
+];
+
+let currentFeatures = null;
+let timerInterval = null;
+let animFrame = null;
+
+// Waveform canvas (just visual feedback for browser-side mic)
+const canvas = document.getElementById("waveCanvas");
+const ctx = canvas.getContext("2d");
+let audioCtx, analyser, micStream;
+
+function updateTask() {
+  const task = TASKS[document.getElementById("speechTask").value];
+  document.getElementById("promptText").textContent = task.prompt;
+  document.getElementById("taskDuration").textContent = `Duration: ${task.duration}s`;
+}
+document.getElementById("speechTask").addEventListener("change", updateTask);
+
+async function startCapture() {
+  const taskKey = document.getElementById("speechTask").value;
+  const task = TASKS[taskKey];
+
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("resetBtn").disabled = true;
+  document.getElementById("featureCard").style.display = "none";
+  document.getElementById("interpretCard").style.display = "none";
+  document.getElementById("fusionCard").style.display = "none";
+  document.getElementById("fusionStatus").style.display = "none";
+
+  // --- Browser mic visualization (just for visual feedback) ---
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+  } catch (e) {
+    console.warn("No browser mic for visualization:", e);
+  }
+
+  // Countdown
+  const badge = document.getElementById("statusBadge");
+  const cdEl = document.getElementById("countdown");
+  badge.className = "status-badge";
+  badge.textContent = "Get ready...";
+  cdEl.classList.add("visible");
+  for (let i = 3; i >= 1; i--) {
+    cdEl.textContent = i;
+    await delay(1000);
+  }
+  cdEl.classList.remove("visible");
+
+  // Recording phase — tell server to start
+  badge.className = "status-badge recording";
+  badge.textContent = "Recording...";
+  startTimer(task.duration);
+  drawWaveform();
+
+  // Actually kick off the server-side recording
+  let result;
+  try {
+    const resp = await fetch("/api/test/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task: taskKey })
+    });
+    result = await resp.json();
+  } catch (err) {
+    badge.className = "status-badge";
+    badge.textContent = "Error";
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("resetBtn").disabled = false;
+    alert("Server error: " + err.message);
+    stopVisuals();
+    return;
+  }
+
+  stopVisuals();
+
+  if (result.status === "ok") {
+    badge.className = "status-badge done";
+    badge.textContent = "Done";
+    currentFeatures = result.features;
+    renderFeatures(result.features);
+    renderInterpretation(result.features);
+    document.getElementById("fusionCard").style.display = "";
+  } else {
+    badge.className = "status-badge";
+    badge.textContent = "Error";
+    alert(result.message || "Unknown error");
+  }
+
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("resetBtn").disabled = false;
+}
+
+function renderFeatures(features) {
+  const grid = document.getElementById("featureGrid");
+  grid.innerHTML = "";
+  FEATURE_LABELS.forEach((f, i) => {
+    const val = features[i] != null ? features[i] : 0;
+    const row = document.createElement("div");
+    row.className = "feature-row";
+    row.innerHTML = `<div><div class="feature-name">${f.name}</div><div style="font-size:.65rem;color:var(--dim)">${f.desc}</div></div><div class="feature-value">${val.toFixed(4)}</div>`;
+    grid.appendChild(row);
+  });
+  document.getElementById("featureCard").style.display = "";
+}
+
+function renderInterpretation(features) {
+  const [pitchMean, pitchStd, rhythm, pause, vocRate, clarity] = features;
+  let lines = [];
+
+  if (vocRate < 0.15)
+    lines.push("Very low vocalization rate — suggests minimal or absent speech, consistent with MECP2 (Rett) or UBE3A (Angelman) profiles.");
+  else if (vocRate < 0.35)
+    lines.push("Reduced vocalization rate — may indicate language regression or limited speech output.");
+  else
+    lines.push("Vocalization rate is within expected range for speech-capable individuals.");
+
+  if (pitchStd < 10)
+    lines.push("Minimal pitch variability (flat prosody) — characteristic of nonverbal or severely impaired speech.");
+  else if (pitchStd < 30)
+    lines.push("Reduced prosodic range — may reflect developmental language delay (SCN1A/Dravet profile).");
+
+  if (clarity < 0.3)
+    lines.push("Low MFCC clarity — vocalizations lack organized phonemic structure.");
+  else if (clarity > 0.6)
+    lines.push("Good phonemic clarity — organized speech spectrum detected.");
+
+  if (pause > 1.0)
+    lines.push("Long mean pause duration — speech is fragmented with extended silences.");
+
+  document.getElementById("interpretText").innerHTML = lines.map(l => `<p style="margin:0 0 8px">${l}</p>`).join("");
+  document.getElementById("interpretCard").style.display = "";
+}
+
+async function sendToFusion() {
+  if (!currentFeatures) return;
+  document.getElementById("fuseBtn").disabled = true;
+  document.getElementById("fusionStatus").style.display = "";
+  document.getElementById("fusionResult").textContent = "Processing...";
+  document.getElementById("fusionDetail").textContent = "Sending speech features to ML fusion pipeline...";
+
+  try {
+    const resp = await fetch("/api/fuse-modality", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modality: "speech", features: currentFeatures })
+    });
+    const data = await resp.json();
+    if (data.status === "ok") {
+      document.getElementById("fusionResult").textContent = "Fused Successfully";
+      document.getElementById("fusionResult").style.color = "var(--green)";
+      const top = data.top_condition || "unknown";
+      const prob = data.top_probability != null ? (data.top_probability * 100).toFixed(1) + "%" : "—";
+      document.getElementById("fusionDetail").textContent =
+        `Top match: ${top.replace(/_/g, " ")} (${prob}). Features stored for combined analysis.`;
+    } else {
+      document.getElementById("fusionResult").textContent = "Stored for Fusion";
+      document.getElementById("fusionResult").style.color = "var(--amber)";
+      document.getElementById("fusionDetail").textContent = data.message || "Features stored. Run full pipeline from dashboard for combined results.";
+    }
+  } catch (err) {
+    document.getElementById("fusionResult").textContent = "Error";
+    document.getElementById("fusionResult").style.color = "var(--coral)";
+    document.getElementById("fusionDetail").textContent = err.message;
+  }
+  document.getElementById("fuseBtn").disabled = false;
+}
+
+function startTimer(duration) {
+  let elapsed = 0;
+  document.getElementById("timer").textContent = "0:00";
+  timerInterval = setInterval(() => {
+    elapsed++;
+    const m = Math.floor(elapsed / 60);
+    const s = String(elapsed % 60).padStart(2, "0");
+    document.getElementById("timer").textContent = `${m}:${s}`;
+    if (elapsed >= duration) clearInterval(timerInterval);
+  }, 1000);
+}
+
+function drawWaveform() {
+  if (!analyser) return;
+  const bufLen = analyser.frequencyBinCount;
+  const data = new Uint8Array(bufLen);
+  const w = canvas.width = canvas.offsetWidth * 2;
+  const h = canvas.height = 240;
+
+  function frame() {
+    analyser.getByteTimeDomainData(data);
+    ctx.fillStyle = "#080d17";
+    ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#47cfff";
+    ctx.beginPath();
+    const sliceW = w / bufLen;
+    let x = 0;
+    for (let i = 0; i < bufLen; i++) {
+      const v = data[i] / 128.0;
+      const y = (v * h) / 2;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      x += sliceW;
+    }
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+    animFrame = requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+function stopVisuals() {
+  clearInterval(timerInterval);
+  cancelAnimationFrame(animFrame);
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; analyser = null; }
+}
+
+function resetPage() {
+  stopVisuals();
+  currentFeatures = null;
+  document.getElementById("timer").textContent = "0:00";
+  document.getElementById("statusBadge").className = "status-badge";
+  document.getElementById("statusBadge").textContent = "Ready";
+  document.getElementById("featureCard").style.display = "none";
+  document.getElementById("interpretCard").style.display = "none";
+  document.getElementById("fusionCard").style.display = "none";
+  document.getElementById("fusionStatus").style.display = "none";
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("resetBtn").disabled = false;
+  // Clear canvas
+  const w = canvas.width; ctx.clearRect(0, 0, w, canvas.height);
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+updateTask();
+</script>
+</body>
+</html>

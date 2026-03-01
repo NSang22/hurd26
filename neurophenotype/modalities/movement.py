@@ -30,6 +30,7 @@ import struct
 import threading
 import time
 from collections import deque
+from pathlib import Path
 
 import numpy as np
 from scipy.signal import welch, find_peaks
@@ -43,9 +44,35 @@ except ImportError:
 try:
     import cv2
     import mediapipe as mp
+    from mediapipe.tasks import python as mp_tasks
+    from mediapipe.tasks.python import vision as mp_vision
     MEDIAPIPE_AVAILABLE = True
+    USE_SOLUTIONS_API = hasattr(mp, "solutions")
 except ImportError:
     MEDIAPIPE_AVAILABLE = False
+    USE_SOLUTIONS_API = False
+
+HAND_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
+)
+HAND_MODEL_PATH = Path(__file__).parent.parent / "models" / "hand_landmarker.task"
+
+
+def _ensure_hand_model() -> bool:
+    """Download hand_landmarker.task if not already present. Returns True if ready."""
+    if HAND_MODEL_PATH.exists():
+        return True
+    try:
+        import urllib.request
+        HAND_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        print("[Movement] Downloading hand_landmarker.task model (~8 MB)...")
+        urllib.request.urlretrieve(HAND_MODEL_URL, HAND_MODEL_PATH)
+        print("[Movement] Model downloaded.")
+        return True
+    except Exception as e:
+        print(f"[Movement] Could not download hand model: {e}")
+        return False
 
 try:
     from bleak import BleakScanner, BleakClient
@@ -59,9 +86,24 @@ ARDUINO_SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
 IMU_CHAR_UUID        = "12345678-1234-1234-1234-123456789abf"  # separate from GSR char
 
 IMU_SAMPLE_RATE_HZ  = 50
-COLLECTION_SECONDS  = 30
+COLLECTION_SECONDS  = 10
 WEBCAM_FPS          = 30
 FEATURE_DIM         = 7
+
+TASK_CONFIG = {
+    "open_close_fists": {
+        "prompt": "Open and close both fists repeatedly.",
+        "duration": 10,
+    },
+    "hands_to_midline": {
+        "prompt": "Bring both hands together to the midline of your body repeatedly.",
+        "duration": 12,
+    },
+    "wrist_rotations": {
+        "prompt": "Rotate your wrists alternately in large circles.",
+        "duration": 10,
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -237,33 +279,40 @@ async def _collect_imu_ble(duration: float) -> np.ndarray:
 
     imu_buffer = []
 
-    async def scan():
+    MAX_RETRIES = 3
+    for attempt in range(MAX_RETRIES):
         devices = await BleakScanner.discover(timeout=8.0, return_adv=True)
-        for _, (device, _) in devices.items():
-            if device.name and device.name.startswith(ARDUINO_DEVICE_NAME):
-                return device
-        return None
+        device = None
+        for _, (d, _) in devices.items():
+            if d.name and d.name.startswith(ARDUINO_DEVICE_NAME):
+                device = d
+                break
 
-    device = await scan()
-    if not device:
-        print("[Movement] Arduino not found — IMU features will be zero")
-        return np.zeros((0, 3))
+        if not device:
+            print(f"[Movement] Arduino not found (attempt {attempt+1}/{MAX_RETRIES}) — IMU features will be zero")
+            if attempt < MAX_RETRIES - 1:
+                await asyncio.sleep(3)
+            continue
 
-    try:
-        async with BleakClient(device.address) as client:
-            print(f"[Movement] Arduino connected. Streaming IMU for {duration}s...")
+        try:
+            async with BleakClient(device.address) as client:
+                print(f"[Movement] Arduino connected. Streaming IMU for {duration}s...")
 
-            def on_imu(sender, data):
-                if len(data) >= 12:
-                    ax, ay, az = struct.unpack_from("<fff", data)
-                    imu_buffer.append([ax, ay, az])
+                def on_imu(sender, data):
+                    if len(data) >= 12:
+                        ax, ay, az = struct.unpack_from("<fff", data)
+                        imu_buffer.append([ax, ay, az])
 
-            await client.start_notify(IMU_CHAR_UUID, on_imu)
-            await asyncio.sleep(duration)
-            await client.stop_notify(IMU_CHAR_UUID)
+                await client.start_notify(IMU_CHAR_UUID, on_imu)
+                await asyncio.sleep(duration)
+                await client.stop_notify(IMU_CHAR_UUID)
+                break  # done
 
-    except Exception as e:
-        print(f"[Movement] Arduino BLE error: {e}")
+        except Exception as e:
+            print(f"[Movement] Arduino BLE error: {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"[Movement] Retrying in 3s... ({attempt+1}/{MAX_RETRIES})")
+                await asyncio.sleep(3)
 
     if imu_buffer:
         return np.array(imu_buffer, dtype=np.float32)
@@ -274,17 +323,22 @@ async def _collect_imu_ble(duration: float) -> np.ndarray:
 # Webcam MediaPipe collection (runs in thread)
 # ---------------------------------------------------------------------------
 
-def _collect_mediapipe(duration: float, hand_positions_out: list, pose_positions_out: list):
+def _collect_mediapipe(duration: float, hand_positions_out: list, pose_positions_out: list, task_prompt: str = ""):
     """
-    Run MediaPipe Hands + Pose in thread, collecting hand centroid positions.
+    Run MediaPipe Hands in thread, collecting hand wrist positions.
+    Uses solutions API (MediaPipe <0.10) when available, else tasks API (0.10+).
     Appends (x, y) tuples to hand_positions_out.
     """
     if not MEDIAPIPE_AVAILABLE:
         print("[Movement] MediaPipe not available — landmark features will be zero")
         return
 
-    mp_hands = mp.solutions.hands
-    mp_pose  = mp.solutions.pose
+    if task_prompt:
+        print(f"\n[Movement] {task_prompt}")
+        for i in range(3, 0, -1):
+            print(f"[Movement] Starting in {i}...")
+            time.sleep(1)
+
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[Movement] Webcam not available")
@@ -293,40 +347,63 @@ def _collect_mediapipe(duration: float, hand_positions_out: list, pose_positions
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     fps = cap.get(cv2.CAP_PROP_FPS) or WEBCAM_FPS
-
     start_time = time.time()
 
-    with mp_hands.Hands(
-        static_image_mode=False,
-        max_num_hands=2,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    ) as hands, mp_pose.Pose(
-        static_image_mode=False,
-        min_detection_confidence=0.5,
-    ) as pose:
+    if USE_SOLUTIONS_API:
+        mp_hands = mp.solutions.hands
+        mp_pose  = mp.solutions.pose
 
-        while time.time() - start_time < duration:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        with mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=2,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+        ) as hands, mp_pose.Pose(
+            static_image_mode=False,
+            min_detection_confidence=0.5,
+        ) as pose:
+            while time.time() - start_time < duration:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                hand_result = hands.process(rgb)
+                if hand_result.multi_hand_landmarks:
+                    for hand_landmarks in hand_result.multi_hand_landmarks:
+                        wrist = hand_landmarks.landmark[0]
+                        hand_positions_out.append((wrist.x, wrist.y))
 
-            # Hand landmarks
-            hand_result = hands.process(rgb)
-            if hand_result.multi_hand_landmarks:
-                for hand_landmarks in hand_result.multi_hand_landmarks:
-                    # Use wrist landmark (0) as hand position
-                    wrist = hand_landmarks.landmark[0]
-                    hand_positions_out.append((wrist.x, wrist.y))
+                pose_result = pose.process(rgb)
+                if pose_result.pose_landmarks:
+                    lw = pose_result.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_WRIST]
+                    rw = pose_result.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_WRIST]
+                    pose_positions_out.append(((lw.x + rw.x) / 2, (lw.y + rw.y) / 2))
+    else:
+        # MediaPipe 0.10+ tasks API
+        if not _ensure_hand_model():
+            print("[Movement] Hand model unavailable — landmark features will be zero")
+            cap.release()
+            return
 
-            # Pose landmarks (wrist positions from pose for backup)
-            pose_result = pose.process(rgb)
-            if pose_result.pose_landmarks:
-                lw = pose_result.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_WRIST]
-                rw = pose_result.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_WRIST]
-                pose_positions_out.append(((lw.x + rw.x) / 2, (lw.y + rw.y) / 2))
+        options = mp_vision.HandLandmarkerOptions(
+            base_options=mp_tasks.BaseOptions(model_asset_path=str(HAND_MODEL_PATH)),
+            running_mode=mp_vision.RunningMode.VIDEO,
+            num_hands=2,
+        )
+        with mp_vision.HandLandmarker.create_from_options(options) as detector:
+            while time.time() - start_time < duration:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                timestamp_ms = int((time.time() - start_time) * 1000)
+                result = detector.detect_for_video(mp_image, timestamp_ms)
+                if result.hand_landmarks:
+                    for hand_lms in result.hand_landmarks:
+                        wrist = hand_lms[0]  # index 0 = wrist
+                        hand_positions_out.append((wrist.x, wrist.y))
 
     cap.release()
 
@@ -343,13 +420,24 @@ class MovementModality(BaseModality):
     """
     FEATURE_DIM = FEATURE_DIM
 
-    def __init__(self, duration: int = COLLECTION_SECONDS, mock_profile: str = None):
-        self.duration = duration
+    def __init__(self, mock_profile: str = None, task: str = "open_close_fists",
+                 skip_imu: bool = False, webcam_delay: float = 0.0):
+        task_cfg = TASK_CONFIG.get(task, TASK_CONFIG["open_close_fists"])
+        self.duration = task_cfg["duration"]
+        self._task_prompt = task_cfg["prompt"]
         self.mock_profile = mock_profile
+        self.skip_imu = skip_imu
+        self.webcam_delay = webcam_delay
 
     def collect(self) -> dict:
         if self.mock_profile:
             return self._mock_data(self.mock_profile)
+
+        # Optional delay to let the OS release the webcam device (Windows
+        # exclusive-lock issue when the browser just freed getUserMedia).
+        if self.webcam_delay > 0:
+            print(f"[Movement] Waiting {self.webcam_delay}s for device release...")
+            time.sleep(self.webcam_delay)
 
         hand_positions = []
         pose_positions = []
@@ -357,19 +445,25 @@ class MovementModality(BaseModality):
         # Run MediaPipe in background thread, IMU in async
         mp_thread = threading.Thread(
             target=_collect_mediapipe,
-            args=(self.duration, hand_positions, pose_positions),
+            args=(self.duration, hand_positions, pose_positions, self._task_prompt),
             daemon=True,
         )
         mp_thread.start()
 
-        # IMU via BLE (async)
-        try:
-            imu_data = asyncio.run(_collect_imu_ble(self.duration))
-        except Exception as e:
-            print(f"[Movement] IMU collection error: {e}")
-            imu_data = np.zeros((0, 3))
+        # IMU via BLE (async) — skip when called from web API to avoid
+        # 30-second BLE scan hangups on machines without an Arduino.
+        imu_data = np.zeros((0, 3))
+        if not self.skip_imu:
+            try:
+                imu_data = asyncio.run(_collect_imu_ble(self.duration))
+            except Exception as e:
+                print(f"[Movement] IMU collection error: {e}")
 
-        mp_thread.join()
+        # Wait for MediaPipe thread with a timeout to prevent infinite hang
+        timeout = self.duration + 15  # generous buffer
+        mp_thread.join(timeout=timeout)
+        if mp_thread.is_alive():
+            print("[Movement] WARNING: MediaPipe thread timed out")
 
         print(f"[Movement] Hand positions: {len(hand_positions)}  |  IMU samples: {len(imu_data)}")
         return {

@@ -1,0 +1,1991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroPhenotype Diagnostic Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=JetBrains+Mono:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#070a11; --panel:#0e1521; --panel2:#121b2a; --line:rgba(120,150,201,.22);
+      --text:#ebf1fb; --muted:#90a0c0; --dim:#5f6f90; --green:#16e7a4; --amber:#f1ab49;
+      --cyan:#47cfff; --coral:#fb7e8f; --violet:#ab8cff;
+      --display:"DM Serif Display",serif; --ui:"Manrope",sans-serif; --mono:"JetBrains Mono",monospace;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100%; color:var(--text); font-family:var(--ui); }
+    body {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(71,207,255,.08), transparent 28%),
+        radial-gradient(circle at 80% 12%, rgba(241,171,73,.06), transparent 26%),
+        linear-gradient(180deg, #05070b, #070a11 35%, #06080d);
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.4;
+      background-image:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:34px 34px;
+    }
+    .shell { position:relative; z-index:1; min-height:100vh; display:grid; grid-template-rows:auto 1fr auto; }
+    header {
+      display:flex; justify-content:space-between; align-items:center; gap:16px;
+      padding:18px 26px; border-bottom:1px solid var(--line); background:rgba(6,8,13,.82); backdrop-filter:blur(12px);
+    }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .mark { width:28px; height:28px; border:1px solid rgba(22,231,164,.45); border-radius:8px; position:relative; box-shadow:0 0 18px rgba(22,231,164,.18); }
+    .mark::before, .mark::after { content:""; position:absolute; background:var(--green); }
+    .mark::before { left:5px; right:5px; top:13px; height:2px; }
+    .mark::after { top:5px; bottom:5px; left:13px; width:2px; }
+    h1 { margin:0; font-family:var(--display); font-size:1.52rem; font-weight:400; line-height:1; }
+    .tagline, .status { font-family:var(--mono); font-size:.63rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+    .status { display:flex; align-items:center; gap:10px; }
+    .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 12px rgba(22,231,164,.45); }
+    /* ── Mode toggle pills ── */
+    .mode-toggle { display:flex; gap:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-left:18px; }
+    .mode-toggle button {
+      font-family:var(--mono); font-size:.63rem; letter-spacing:.12em; text-transform:uppercase;
+      padding:5px 14px; border:none; cursor:pointer; background:transparent; color:var(--muted);
+      transition:background .18s, color .18s;
+    }
+    .mode-toggle button.active { background:var(--green); color:#0a0d14; font-weight:700; }
+    .mode-toggle button:not(.active):hover { color:var(--text); }
+    /* ── Clinical banner ── */
+    .clinical-banner {
+      display:none; margin-top:10px; padding:10px 16px; border-radius:12px;
+      background:rgba(241,171,73,.08); border:1px solid rgba(241,171,73,.18);
+      font-family:var(--mono); font-size:.7rem; letter-spacing:.06em;
+      color:var(--amber); line-height:1.55;
+    }
+    /* ── Modal overlay ── */
+    .modal-overlay {
+      display:none; position:fixed; inset:0; z-index:100;
+      background:rgba(4,6,10,.88); backdrop-filter:blur(14px);
+      place-items:center; animation:fadeIn .25s ease;
+    }
+    .modal-overlay.open { display:grid; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .modal-card {
+      width:min(640px, 92vw); max-height:92vh; overflow-y:auto;
+      background:var(--panel); border:1px solid var(--line); border-radius:24px;
+      box-shadow:0 30px 100px rgba(0,0,0,.5);
+    }
+    .modal-header {
+      display:flex; justify-content:space-between; align-items:center; padding:18px 22px;
+      border-bottom:1px solid var(--line);
+    }
+    .modal-header .eyebrow { margin:0; }
+    .modal-close {
+      width:30px; height:30px; border-radius:8px; border:1px solid var(--line);
+      background:transparent; color:var(--muted); font-size:1.2rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      line-height:1; padding:0; transition:border-color .15s;
+    }
+    .modal-close:hover { border-color:var(--coral); color:var(--coral); transform:none; }
+    .modal-body { padding:22px; display:grid; gap:18px; }
+    .modal-instruction {
+      padding:18px; border-radius:16px; line-height:1.7; font-size:.88rem; color:var(--muted);
+    }
+    .modal-instruction.movement {
+      border:1px solid rgba(241,171,73,.2);
+      background:linear-gradient(135deg, rgba(241,171,73,.06), transparent 60%);
+    }
+    .modal-instruction.speech {
+      border:1px solid rgba(71,207,255,.2);
+      background:linear-gradient(135deg, rgba(71,207,255,.06), transparent 60%);
+    }
+    .modal-instruction strong { color:var(--text); }
+    .modal-prompt {
+      margin-top:14px; padding:14px; border-radius:12px; text-align:center;
+      font-family:var(--display); font-size:1.15rem; line-height:1.4;
+    }
+    .movement .modal-prompt { background:rgba(241,171,73,.08); border:1px solid rgba(241,171,73,.15); color:var(--amber); }
+    .speech .modal-prompt { background:rgba(71,207,255,.08); border:1px solid rgba(71,207,255,.15); color:var(--cyan); }
+    .modal-capture {
+      min-height:260px; border-radius:16px; border:1px solid var(--line);
+      background:#060a12; position:relative; overflow:hidden;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+    }
+    .modal-capture video {
+      width:100%; height:auto; display:block; border-radius:16px; transform:scaleX(-1);
+    }
+    .modal-capture canvas { width:100%; height:140px; }
+    .modal-countdown {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      font-family:var(--display); font-size:4.5rem; z-index:4; opacity:0; transition:opacity .3s;
+    }
+    .modal-countdown.visible { opacity:1; }
+    .modal-countdown.movement-cd { color:var(--amber); text-shadow:0 0 30px rgba(241,171,73,.4); }
+    .modal-countdown.speech-cd { color:var(--cyan); text-shadow:0 0 30px rgba(71,207,255,.4); }
+    .modal-badge {
+      position:absolute; top:12px; left:12px;
+      font-family:var(--mono); font-size:.56rem; letter-spacing:.12em; text-transform:uppercase;
+      padding:5px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted);
+      background:rgba(6,10,18,.85); backdrop-filter:blur(6px); z-index:3;
+    }
+    .modal-badge.recording { border-color:var(--coral); color:var(--coral); animation:pulse 1.2s infinite; }
+    .modal-badge.done { border-color:var(--green); color:var(--green); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .modal-timer {
+      position:absolute; bottom:12px; right:12px;
+      font-family:var(--mono); font-size:1.1rem; color:var(--coral);
+      background:rgba(6,10,18,.85); backdrop-filter:blur(6px);
+      padding:5px 10px; border-radius:8px; border:1px solid rgba(251,126,143,.2); z-index:3;
+    }
+    .modal-footer {
+      padding:14px 22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;
+    }
+    .modal-footer .modal-step {
+      font-family:var(--mono); font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);
+    }
+    .mic-icon {
+      width:80px; height:80px; border-radius:50%; border:3px solid var(--cyan);
+      display:grid; place-items:center; margin:0 auto;
+      box-shadow:0 0 0 0 rgba(71,207,255,.3); transition:box-shadow .3s;
+    }
+    .mic-icon.active { animation:micPulse 1.4s infinite; }
+    @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(71,207,255,.4)} 70%{box-shadow:0 0 0 18px rgba(71,207,255,0)} 100%{box-shadow:0 0 0 0 rgba(71,207,255,0)} }
+    .mic-icon svg { width:32px; height:32px; fill:var(--cyan); }
+    main { display:grid; grid-template-columns:320px minmax(0,1fr) 350px; gap:16px; padding:16px; }
+    .col { background:rgba(14,21,33,.9); border:1px solid var(--line); border-radius:20px; overflow:hidden; }
+    .col-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:16px 18px; border-bottom:1px solid var(--line); }
+    .eyebrow { font-family:var(--mono); font-size:.62rem; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
+    .sub { font-family:var(--mono); font-size:.62rem; color:var(--muted); }
+    .body { padding:18px; }
+    .stack { display:grid; gap:14px; }
+    .card { padding:14px; border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,.008)); }
+    .card h3, .label { margin:0 0 10px; font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+    .sensor-row { display:grid; grid-template-columns:10px 1fr auto; gap:10px; align-items:start; padding:7px 0; border-bottom:1px solid rgba(120,150,201,.1); }
+    .sensor-row:last-child { border-bottom:none; }
+    .dot { width:10px; height:10px; border-radius:50%; margin-top:4px; background:rgba(95,111,144,.55); transition:all .24s ease; }
+    .dot.active { background:var(--green); box-shadow:0 0 12px rgba(22,231,164,.35); }
+    .sensor-name { font-size:.84rem; font-weight:700; }
+    .sensor-desc { margin-top:2px; font-size:.72rem; color:var(--muted); }
+    .sensor-state { font-family:var(--mono); font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+    .sensor-state.active { color:var(--green); }
+    label { display:grid; gap:6px; font-size:.72rem; color:var(--muted); }
+    input, select {
+      width:100%; border:1px solid rgba(120,150,201,.34); background:#0a101a; color:var(--text);
+      border-radius:10px; padding:10px 12px; font:inherit;
+    }
+    input[type="range"] { padding:0; accent-color:var(--green); }
+    .check { display:flex; align-items:center; gap:10px; }
+    .check input { width:auto; accent-color:var(--green); }
+    .hpo-list { display:grid; gap:6px; max-height:320px; overflow-y:auto; padding-right:2px; }
+  .hpo-list::-webkit-scrollbar { width:4px; }
+  .hpo-list::-webkit-scrollbar-thumb { background:rgba(120,150,201,.2); border-radius:2px; }
+
+  .hpo-item { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; padding:9px 11px; border-radius:10px; border:1px solid rgba(120,150,201,.12); background:rgba(10,16,26,.6); transition:border-color .18s ease, background .18s ease; }
+  .hpo-item:hover { border-color:rgba(120,150,201,.25); }
+  .hpo-item.state-present { border-color:rgba(22,231,164,.35); background:rgba(22,231,164,.06); }
+  .hpo-item.state-absent { border-color:rgba(251,126,143,.3); background:rgba(251,126,143,.05); }
+  .hpo-item.state-uncertain { border-color:rgba(241,171,73,.3); background:rgba(241,171,73,.05); }
+
+  .hpo-label { display:flex; flex-direction:column; gap:2px; }
+  .hpo-id { font-family:var(--mono); font-size:.56rem; letter-spacing:.12em; color:var(--dim); }
+  .hpo-name { font-size:.76rem; color:var(--text); line-height:1.3; }
+
+  .hpo-toggle { display:flex; gap:3px; flex-shrink:0; }
+  .hpo-btn { border:1px solid rgba(120,150,201,.2); background:transparent; color:var(--muted); font-family:var(--mono); font-size:.52rem; letter-spacing:.08em; text-transform:uppercase; padding:4px 7px; border-radius:6px; cursor:pointer; transition:all .15s ease; }
+  .hpo-btn:hover { transform:none; border-color:rgba(120,150,201,.4); color:var(--text); }
+  .hpo-btn.active-present { background:rgba(22,231,164,.18); border-color:rgba(22,231,164,.5); color:var(--green); }
+  .hpo-btn.active-absent { background:rgba(251,126,143,.18); border-color:rgba(251,126,143,.5); color:var(--coral); }
+  .hpo-btn.active-uncertain { background:rgba(241,171,73,.18); border-color:rgba(241,171,73,.5); color:var(--amber); }
+    .hpo-item:last-child { border-bottom:none; }
+    .hpo-item .name { font-size:.75rem; line-height:1.4; }
+    .hpo-item .name span { color:var(--muted); font-family:var(--mono); font-size:.62rem; margin-right:6px; }
+    .hero { padding:24px; display:grid; gap:14px; }
+    .banner {
+      padding:18px; border-radius:18px; border:1px solid rgba(22,231,164,.22);
+      background:linear-gradient(135deg, rgba(22,231,164,.08), transparent 50%), linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    }
+    .kick { font-family:var(--mono); font-size:.58rem; letter-spacing:.18em; text-transform:uppercase; color:var(--green); }
+    .title { margin-top:8px; font-family:var(--display); font-size:2rem; line-height:.95; }
+    .copy { margin-top:12px; max-width:520px; color:var(--muted); line-height:1.7; font-size:.88rem; }
+    .run-row { display:flex; gap:10px; flex-wrap:wrap; }
+    button {
+      border:0; cursor:pointer; border-radius:999px; padding:12px 18px; font-family:var(--mono); font-size:.64rem;
+      letter-spacing:.14em; text-transform:uppercase; transition:transform .18s ease, box-shadow .18s ease; }
+    button:hover { transform:translateY(-1px); }
+    .btn-primary { background:var(--green); color:#04130d; box-shadow:0 0 18px rgba(22,231,164,.25); }
+    .btn-secondary { background:transparent; color:var(--text); border:1px solid rgba(120,150,201,.34); }
+    .progress { display:none; gap:10px; }
+    .track { height:6px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; }
+    .bar { width:0%; height:100%; background:linear-gradient(90deg, var(--green), var(--cyan)); transition:width .24s ease; }
+    .progress-copy { font-family:var(--mono); font-size:.66rem; color:var(--green); }
+    .results { display:none; gap:10px; }
+    .list { display:grid; gap:10px; }
+    .row { padding:14px; border-radius:14px; border:1px solid var(--line); background:#0a101a; opacity:0; transform:translateY(8px); transition:opacity .35s ease, transform .35s ease; }
+    .row.show { opacity:1; transform:translateY(0); }
+    .row.top { background:var(--panel2); }
+    .row-meta { display:flex; justify-content:space-between; gap:10px; align-items:start; }
+    .row-name { font-family:var(--display); font-size:1.08rem; line-height:1; }
+    .row-gene { margin-top:4px; font-family:var(--mono); font-size:.6rem; color:var(--muted); }
+    .row-score { font-family:var(--mono); font-size:1.2rem; font-weight:700; }
+    .row-detail { margin-top:8px; font-size:.72rem; color:var(--muted); }
+    .mini-track { margin-top:10px; height:5px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; }
+    .mini-fill { width:0%; height:100%; border-radius:999px; transition:width .7s cubic-bezier(.16,1,.3,1); }
+    .split { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+    .box { padding:14px; border:1px solid var(--line); border-radius:14px; background:#0a101a; }
+    .box p, .box pre { margin:0; font-size:.8rem; line-height:1.7; color:var(--muted); white-space:pre-wrap; }
+    .metric { padding:14px; border:1px solid var(--line); border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,.008)); }
+    .big { margin-top:8px; font-family:var(--display); font-size:1.55rem; line-height:1; }
+    .metric .small, .small { margin-top:7px; font-size:.77rem; line-height:1.6; color:var(--muted); }
+    .warn { padding:12px 14px; border:1px solid rgba(241,171,73,.22); border-radius:14px; background:rgba(241,171,73,.12); color:#f3d6a8; font-size:.78rem; line-height:1.6; }
+    .score-list { display:grid; gap:8px; }
+    .score-row { display:flex; justify-content:space-between; gap:12px; padding-bottom:6px; border-bottom:1px solid rgba(120,150,201,.1); font-size:.72rem; color:var(--muted); }
+    footer { padding:12px 18px 20px; text-align:center; color:var(--dim); font-size:.72rem; }
+    @media (max-width:1200px) { main { grid-template-columns:1fr; } .split { grid-template-columns:1fr; } }
+    /* ── Locked card overlay ── */
+    .card-locked { opacity:0.4; pointer-events:none; position:relative; transition:opacity .4s ease; }
+    .card-locked-label {
+      font-family:var(--mono); font-size:0.6rem; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--dim); margin-bottom:6px;
+    }
+    .card-unlocked { opacity:1; pointer-events:auto; }
+    @keyframes hpoPulse {
+      0% { box-shadow:0 0 0 2px var(--green); }
+      100% { box-shadow:0 0 0 2px transparent; }
+    }
+    .hpo-pulse { animation:hpoPulse 1.5s ease-out forwards; }
+    /* ── Step 2 label ── */
+    #step2Label {
+      display:none; font-family:var(--mono); font-size:.65rem; letter-spacing:.16em;
+      text-transform:uppercase; color:var(--green); margin-top:6px;
+    }
+    /* ── Paper document card ── */
+    #liveDocument {
+      display:none; border-radius:4px; padding:32px; max-height:420px; overflow-y:auto;
+      background:#f5f0e8; color:#1a1a1a; font-family:'Lora',serif; font-size:.82rem; line-height:1.75;
+      box-shadow:0 8px 40px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3);
+      position:relative;
+    }
+    #liveDocument::before {
+      content:''; position:absolute; inset:0; pointer-events:none; border-radius:4px;
+      background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+    }
+    #liveDocument::-webkit-scrollbar { width:6px; }
+    #liveDocument::-webkit-scrollbar-track { background:rgba(0,0,0,.06); border-radius:3px; }
+    #liveDocument::-webkit-scrollbar-thumb { background:rgba(0,0,0,.18); border-radius:3px; }
+    .paper-head { font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; color:#6b5f4e; display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px; }
+    .paper-title { font-family:'Lora',serif; font-size:1.05rem; font-weight:600; color:#1a1a1a; margin:8px 0 4px; }
+    .paper-rule { border:none; border-top:1px solid #c8bfae; margin:10px 0; }
+    .paper-section-label { font-family:'JetBrains Mono',monospace; font-size:.56rem; letter-spacing:.2em; text-transform:uppercase; color:#6b5f4e; margin:14px 0 4px; }
+    .paper-placeholder { font-style:italic; color:#9a8f7f; }
+    .paper-line { color:#1a1a1a; transition:opacity .3s ease, transform .3s ease; }
+    .paper-line-enter { opacity:0; transform:translateY(4px); }
+    .paper-line-show { opacity:1; transform:translateY(0); }
+    .paper-warn { color:#9a5d00; font-weight:600; margin-top:4px; }
+    @keyframes paperSlideIn {
+      from { opacity:0; transform:translateY(30px); }
+      to { opacity:1; transform:translateY(0); }
+    }
+    .paper-animate { animation:paperSlideIn 450ms cubic-bezier(0.16,1,0.3,1) both; }
+
+    /* ── Icon strip (collapsed clinical cards) ── */
+    #clinicalIconStrip {
+      display:none; width:48px; padding:10px 0; border:1px solid var(--line); border-radius:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,.008));
+      flex-direction:column; align-items:center; gap:14px; position:relative; z-index:5;
+      transition:width 250ms ease, padding 250ms ease, opacity 250ms ease;
+      overflow:hidden; flex-shrink:0;
+    }
+    #clinicalIconStrip.visible { display:flex; }
+    #clinicalIconStrip.expanded {
+      width:100%; padding:14px; gap:14px; overflow-y:auto;
+    }
+    .strip-icon {
+      display:flex; align-items:center; justify-content:center; width:32px; height:32px;
+      font-size:1.05rem; cursor:default; border-radius:8px; flex-shrink:0;
+      transition:background .15s; position:relative;
+    }
+    .strip-icon:hover { background:rgba(120,150,201,.12); }
+    .strip-icon .strip-tip {
+      display:none; position:absolute; left:52px; top:50%; transform:translateY(-50%);
+      white-space:nowrap; font-family:var(--mono); font-size:.56rem; letter-spacing:.1em;
+      text-transform:uppercase; color:var(--text); background:var(--panel2);
+      border:1px solid var(--line); border-radius:6px; padding:4px 8px; z-index:10;
+      pointer-events:none;
+    }
+    .strip-icon:hover .strip-tip { display:block; }
+    #clinicalIconStrip.expanded .strip-icon { display:none; }
+    #clinicalIconStrip .strip-expanded-content { display:none; width:100%; }
+    #clinicalIconStrip.expanded .strip-expanded-content { display:block; }
+
+    /* ── Paper editable fields ── */
+    .paper-editable {
+      cursor:pointer; border-radius:3px; padding:0 2px; transition:background .15s ease;
+      position:relative; display:inline;
+    }
+    .paper-editable:hover { background:rgba(180,160,120,.15); }
+    .paper-editable.placeholder {
+      font-style:italic; color:#9a8f7f;
+      border-bottom:1px dashed #c4b89a;
+    }
+    .paper-editable.filled {
+      color:#1a1a1a; font-style:normal;
+      border-bottom:1px solid #9a8f7f;
+    }
+    .paper-editable.hpo-present { font-weight:400; color:#1a1a1a; border-bottom:1px solid #9a8f7f; }
+    .paper-editable.hpo-absent { text-decoration:line-through; color:#9a8f7f; border-bottom:none; }
+    .paper-editable.hpo-uncertain { font-style:italic; font-weight:400; color:#6b5f4e; border-bottom:1px dashed #c4b89a; }
+    .paper-editable.hpo-unassessed { font-style:italic; color:#9a8f7f; border-bottom:1px dashed #c4b89a; }
+
+    /* ── Popover ── */
+    .paper-popover {
+      position:absolute; z-index:50; min-width:220px; max-width:320px;
+      background:#fdf8f0; border:1px solid #d4cbb8; border-radius:10px;
+      box-shadow:0 8px 30px rgba(0,0,0,.25), 0 2px 8px rgba(0,0,0,.12);
+      padding:12px 14px; font-family:'Lora',serif; font-size:.78rem; color:#1a1a1a;
+      transform-origin:center top; animation:popIn 150ms cubic-bezier(.16,1,.3,1) both;
+    }
+    .paper-popover.above { transform-origin:center bottom; }
+    @keyframes popIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+    .paper-popover .pop-header {
+      font-family:'JetBrains Mono',monospace; font-size:.52rem; letter-spacing:.12em;
+      text-transform:uppercase; color:#6b5f4e; margin-bottom:8px; line-height:1.5;
+    }
+    .paper-popover .pop-pills { display:flex; gap:5px; flex-wrap:wrap; }
+    .paper-popover .pop-pill {
+      flex:1; min-width:60px; padding:7px 6px; border-radius:8px; border:1.5px solid #d4cbb8;
+      background:transparent; font-family:var(--mono); font-size:.56rem; letter-spacing:.08em;
+      text-transform:uppercase; text-align:center; cursor:pointer;
+      transition:all .15s ease; color:#6b5f4e;
+    }
+    .paper-popover .pop-pill:hover { transform:none; border-color:#9a8f7f; color:#1a1a1a; }
+    .paper-popover .pop-pill.pill-green { border-color:#2e7d32; background:rgba(46,125,50,.1); color:#2e7d32; font-weight:700; }
+    .paper-popover .pop-pill.pill-red { border-color:#c62828; background:rgba(198,40,40,.08); color:#c62828; font-weight:700; }
+    .paper-popover .pop-pill.pill-amber { border-color:#e65100; background:rgba(230,81,0,.08); color:#e65100; font-weight:700; }
+    .paper-popover .pop-unassess {
+      display:block; margin-top:6px; font-size:.6rem; color:#9a8f7f; cursor:pointer;
+      text-align:center; padding:3px 0; border:none; background:none; width:100%;
+      font-family:'JetBrains Mono',monospace; letter-spacing:.06em;
+    }
+    .paper-popover .pop-unassess:hover { color:#6b5f4e; transform:none; }
+    .paper-popover .pop-row { display:grid; gap:8px; margin-bottom:6px; }
+    .paper-popover .pop-row label {
+      display:grid; gap:4px; font-size:.68rem; color:#6b5f4e;
+      font-family:'JetBrains Mono',monospace; letter-spacing:.04em;
+    }
+    .paper-popover .pop-row input,
+    .paper-popover .pop-row select {
+      width:100%; padding:6px 8px; border:1px solid #d4cbb8; border-radius:6px;
+      background:#fdf8f0; color:#1a1a1a; font-family:'Lora',serif; font-size:.78rem;
+    }
+    .paper-popover .pop-row .check-row {
+      display:flex; align-items:center; gap:8px; font-size:.72rem; color:#1a1a1a;
+    }
+    .paper-popover .pop-row .check-row input { width:auto; accent-color:#2e7d32; }
+    .paper-popover .pop-confirm {
+      display:block; width:100%; margin-top:8px; padding:7px; border-radius:8px;
+      border:none; background:#2e7d32; color:#fff; font-family:var(--mono);
+      font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;
+      transition:background .15s;
+    }
+    .paper-popover .pop-confirm:hover { background:#1b5e20; transform:none; }
+
+    /* ── Typewriter ── */
+    .paper-typewriter { display:inline; }
+    .paper-typewriter .tw-cursor {
+      display:inline-block; width:1px; height:.85em; background:#6b5f4e;
+      vertical-align:text-bottom; margin-left:1px;
+      animation:twBlink .6s step-end infinite;
+    }
+    @keyframes twBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="mark"></div>
+        <div>
+          <h1>NeuroPhenotype</h1>
+          <div class="tagline">Passive phenotyping + clinical record integration</div>
+        </div>
+      </div>
+      <div class="status"><div class="status-dot" id="statusDot"></div><div id="statusLabel">System Ready</div></div>
+      <div class="mode-toggle" id="modeToggle">
+        <button id="modeDemo" class="active">Demo</button>
+        <button id="modeClinical">Clinical</button>
+      </div>
+    </header>
+    <main>
+      <aside class="col" id="inputCol">
+        <div class="col-head"><div class="eyebrow">Input Layer</div><div class="sub">Half 1 + Half 2</div></div>
+        <div class="body stack">
+          <section class="card"><h3>Signal Acquisition</h3><div id="sensorList"></div></section>
+          <section class="card">
+            <h3>Assessment Mode</h3>
+            <label>Demo profile<select id="profileSelect">
+              <option value="rett_syndrome">Rett Syndrome</option>
+              <option value="dravet_syndrome">Dravet Syndrome</option>
+              <option value="angelman_syndrome">Angelman Syndrome</option>
+              <option value="control">Neurotypical Control</option>
+            </select></label>
+          </section>
+          <section class="card stack">
+            <h3>Sensor Toggles</h3>
+            <label class="check"><input id="toggleEEG" type="checkbox" checked /><span>EEG enabled</span></label>
+            <label class="check"><input id="toggleHRV" type="checkbox" checked /><span>HRV enabled</span></label>
+            <label class="check"><input id="toggleMovement" type="checkbox" checked /><span>Movement enabled</span></label>
+            <label class="check"><input id="toggleSpeech" type="checkbox" checked /><span>Speech enabled</span></label>
+          </section>
+          <section class="card stack" id="clinicalIntakeCard">
+            <div class="card-locked-label" id="clinicalIntakeLockLabel">Complete after biosignal capture</div>
+            <h3>Clinical Intake</h3>
+            <label>Age of onset (months)<input id="onsetAge" type="number" min="0" max="240" value="0" /></label>
+            <label>Clinical severity<input id="severityScore" type="range" min="0" max="1" step="0.05" value="0.5" /></label>
+            <label class="check"><input id="regressionFlag" type="checkbox" /><span>Developmental regression observed</span></label>
+            <label>Affected relatives<input id="affectedRelatives" type="number" min="0" max="5" value="0" /></label>
+            <label>Suspected inheritance<select id="inheritancePattern">
+              <option value="unknown">Unknown</option>
+              <option value="x_linked">X-linked</option>
+              <option value="autosomal_dominant">Autosomal dominant</option>
+              <option value="autosomal_recessive">Autosomal recessive</option>
+              <option value="de_novo">De novo</option>
+            </select></label>
+            <label>Prior genetic testing<select id="priorTestStatus">
+              <option value="none">None</option>
+              <option value="negative_panel">Negative panel</option>
+              <option value="negative_exome">Negative exome</option>
+              <option value="vus">VUS</option>
+              <option value="incomplete_panel">Incomplete panel</option>
+            </select></label>
+            <label>New phenotypes since last test<input id="newPhenotypes" type="number" min="0" max="10" value="0" /></label>
+          </section>
+          <section class="card stack">
+            <h3>Guided Tasks</h3>
+            <label>Movement task<select id="movementTask">
+              <option value="open_close_fists">Open and close both fists</option>
+              <option value="hands_to_midline">Bring both hands to midline and back</option>
+              <option value="wrist_rotations">Alternate wrist rotations</option>
+            </select></label>
+            <label>Speech task<select id="speechTask">
+              <option value="count_1_10">Count from 1 to 10 repeatedly</option>
+              <option value="repeat_phrase">Repeat a fixed sentence</option>
+              <option value="describe_prompt">Describe what you see around you</option>
+            </select></label>
+            <div class="small" id="taskSummary">Live mode prompts the user through short guided tasks so movement and speech features are more stable and comparable.</div>
+          </section>
+          <!-- Icon strip (visible in Step 2 when cards are collapsed) -->
+          <div id="clinicalIconStrip">
+            <div class="strip-icon" data-section="hpo" title="HPO Terms">&#129516;<span class="strip-tip">HPO Terms</span></div>
+            <div class="strip-icon" data-section="onset" title="Onset">&#128197;<span class="strip-tip">Onset</span></div>
+            <div class="strip-icon" data-section="family" title="Family">&#128106;<span class="strip-tip">Family</span></div>
+            <div class="strip-icon" data-section="prior" title="Prior Testing">&#129514;<span class="strip-tip">Prior Testing</span></div>
+            <div class="strip-expanded-content" id="stripExpandedContent"></div>
+          </div>
+          <section class="card" id="hpoCard">
+            <div class="card-locked-label" id="hpoLockLabel">Complete after biosignal capture</div>
+            <h3>HPO Checklist</h3><div class="hpo-list" id="hpoList"></div></section>
+        </div>
+      </aside>
+
+      <section class="col" id="mainCol">
+        <div class="col-head"><div class="eyebrow">Fusion + Classification</div><div class="sub" id="modeLabel">Awaiting assessment</div></div>
+        <div class="hero">
+          <div class="banner">
+            <div class="kick">Next best diagnostic step</div>
+            <div class="title">One instrument.<br />Two data streams.</div>
+            <div class="copy">Passive biosignals capture the functional phenotype. Structured intake captures what the chart already knows. NeuroPhenotype fuses both into a targeted genomic recommendation, not just a disease ranking.</div>
+          </div>
+          <div class="run-row">
+            <button class="btn-primary" id="demoButton">Run Demo</button>
+            <button class="btn-secondary" id="liveButton">Run Live Pipeline</button>
+            <button class="btn-secondary" id="resetButton">Reset</button>
+          </div>
+          <div class="clinical-banner" id="clinicalBanner">Clinical mode &mdash; condition is determined solely from biosignals and structured intake. No profile selected.</div>
+          <section class="card progress" id="progressCard">
+            <div class="label">Acquisition Status</div>
+            <div class="track"><div class="bar" id="progressBar"></div></div>
+            <div class="progress-copy" id="progressCopy">Waiting...</div>
+          </section>
+          <section class="card results" id="resultsCard">
+            <div class="label">Combined Condition Priorities</div>
+            <div class="list" id="priorityList"></div>
+          </section>
+          <div id="step2Label">Step 2 &mdash; Add Clinical Context</div>
+          <div id="liveDocument"></div>
+          <div class="split">
+            <section class="box"><div class="label">Patient View</div><p id="patientSummary">Run an assessment to generate a parent-readable summary.</p></section>
+            <section class="box" id="clinicianBox"><div class="label">Clinician View</div><pre id="clinicianNote">Run an assessment to generate a structured SOAP-style summary.</pre></section>
+          </div>
+        </div>
+      </section>
+
+      <aside class="col" id="recommendationCol">
+        <div class="col-head"><div class="eyebrow">Recommendation Layer</div><div class="sub">Actionable output</div></div>
+        <div class="body stack">
+          <section class="metric"><div class="label">Top Match</div><div class="big" id="topMatch">No assessment yet</div><div class="small" id="topGene">Gene target will appear here.</div></section>
+          <section class="metric"><div class="label">Recommended Next Step</div><div class="big" id="nextStep">Awaiting data</div><div class="small" id="nextRationale">Targeted panel recommendation or reanalysis guidance will appear here.</div></section>
+          <section class="metric"><div class="label">Combined Confidence</div><div class="big" id="topConfidence">0.0%</div><div class="small">Biosignal probability blended with HPO support and conflict handling.</div></section>
+          <section class="metric"><div class="label">Estimated Savings</div><div class="big" id="estimatedSavings">$0</div><div class="small">Savings are estimated versus repeating whole exome sequencing.</div></section>
+          <section class="metric"><div class="label">Turnaround</div><div class="big" id="turnaround">-</div><div class="small">Expected turnaround for the top recommendation.</div></section>
+          <section class="warn" id="uncertaintyBox">Confidence notes and missing-data guidance will appear here after the run.</section>
+          <section class="card" id="hpoScoresCard"><h3>HPO Condition Scores</h3><div class="score-list" id="hpoScores"></div></section>
+        </div>
+      </aside>
+    </main>
+    <footer>Results are for research triage only. This system prioritizes the next diagnostic step and does not provide a diagnosis.</footer>
+  </div>
+
+  <!-- ═══ Movement Modal ═══ -->
+  <div class="modal-overlay" id="movementModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="eyebrow">Movement Capture</div>
+        <button class="modal-close" id="movementModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-instruction movement" id="movementInstruction">
+          <strong>Instructions</strong>
+          <p>Position yourself so your hands and upper body are visible in the camera.</p>
+          <div class="modal-prompt" id="movementPrompt">Open and close both fists for 10–15 seconds.</div>
+        </div>
+        <div class="modal-capture" id="movementCapture">
+          <video id="movementVideo" autoplay muted playsinline></video>
+          <div class="modal-badge" id="movementBadge">Ready</div>
+          <div class="modal-timer" id="movementTimer" style="display:none">0:00</div>
+          <div class="modal-countdown movement-cd" id="movementCountdown"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-step" id="movementStep">Step 1 of 2</div>
+        <button class="btn-primary" id="movementStart" style="padding:10px 20px">Start Capture</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Speech Modal ═══ -->
+  <div class="modal-overlay" id="speechModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="eyebrow">Speech Capture</div>
+        <button class="modal-close" id="speechModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-instruction speech" id="speechInstruction">
+          <strong>Instructions</strong>
+          <p>Speak clearly into your microphone for the duration shown.</p>
+          <div class="modal-prompt" id="speechPrompt">Count from 1 to 10 repeatedly in a steady voice.</div>
+        </div>
+        <div class="modal-capture" id="speechCapture">
+          <div class="mic-icon" id="micIcon">
+            <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V21h2v-3.07A7 7 0 0 0 19 11h-2z"/></svg>
+          </div>
+          <canvas id="speechWaveCanvas"></canvas>
+          <div class="modal-badge" id="speechBadge">Ready</div>
+          <div class="modal-timer" id="speechTimer" style="display:none">0:00</div>
+          <div class="modal-countdown speech-cd" id="speechCountdown"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-step" id="speechStep">Step 2 of 2</div>
+        <button class="btn-primary" id="speechStart" style="padding:10px 20px">Start Recording</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const HPO_TERMS = [
+      ["HP:0002376","Hand stereotypy"],["HP:0002384","Irregular respiration"],["HP:0001263","Global developmental delay"],
+      ["HP:0001250","Seizures"],["HP:0002069","Generalized tonic-clonic seizures"],["HP:0001344","Absent speech"],
+      ["HP:0001257","Spasticity"],["HP:0000717","Autistic behavior"],["HP:0011344","Severe speech impairment"]
+    ];
+    const HPO_OPTIONS = [["not_assessed","Not assessed"],["present","Present"],["absent","Absent"],["uncertain","Uncertain"]];
+    const SENSORS = [
+      ["EEG","Neural signatures"],
+      ["HRV","Autonomic profile"],
+      ["Movement","Motor phenotyping"],
+      ["Speech","Vocal biomarkers"]
+    ];
+    const STYLE = {
+      rett_syndrome:{label:"Rett Syndrome",color:"#f1ab49"},
+      dravet_syndrome:{label:"Dravet Syndrome",color:"#47cfff"},
+      angelman_syndrome:{label:"Angelman Syndrome",color:"#fb7e8f"},
+      control:{label:"Neurotypical Control",color:"#9aa9c8"},
+      reanalysis_triggered:{label:"Reanalysis Trigger",color:"#16e7a4"}
+    };
+    const BASE_STEPS = [
+      "Collecting or simulating biosignals...",
+      "Running base classifier...",
+      "Scoring HPO evidence...",
+      "Checking prior-test reanalysis triggers...",
+      "Synthesizing next-step recommendation..."
+    ];
+    const currentRole = new URLSearchParams(window.location.search).get("role") || "doctor";
+
+    // ── Live document state ──
+    let lastBiosignalResults = null;   // stashed after each assessment for live re-scoring
+
+    const HPO_WEIGHTS = {
+      rett_syndrome:      {"HP:0002376":3.0,"HP:0002384":2.0,"HP:0001263":1.5,"HP:0001344":1.5,"HP:0011344":1.0},
+      dravet_syndrome:    {"HP:0001250":3.0,"HP:0002069":2.5,"HP:0001263":1.5,"HP:0002384":0.5},
+      angelman_syndrome:  {"HP:0001344":3.0,"HP:0001250":2.0,"HP:0001257":1.5,"HP:0001263":1.5,"HP:0002376":0.5}
+    };
+    const STATUS_ENCODING = { present:1.0, absent:-1.0, uncertain:0.5, not_assessed:0.0 };
+
+    function init() {
+      const sensorList = document.getElementById("sensorList");
+      SENSORS.forEach(([name, desc]) => {
+        const id = cssId(name);
+        const row = document.createElement("div");
+        row.className = "sensor-row";
+        row.innerHTML = `<div class="dot" id="dot-${id}"></div><div><div class="sensor-name">${name}</div><div class="sensor-desc">${desc}</div></div><div class="sensor-state" id="state-${id}">Ready</div>`;
+        sensorList.appendChild(row);
+      });
+
+      const hpoList = document.getElementById("hpoList");
+HPO_TERMS.forEach(([id, label]) => {
+  const item = document.createElement("div");
+  item.className = "hpo-item";
+  item.dataset.hpoId = id;
+  item.dataset.state = "not_assessed";
+  item.innerHTML = `
+    <div class="hpo-label">
+      <span class="hpo-id">${id}</span>
+      <span class="hpo-name">${label}</span>
+    </div>
+    <div class="hpo-toggle">
+      <button class="hpo-btn" data-value="present">Y</button>
+      <button class="hpo-btn" data-value="absent">N</button>
+      <button class="hpo-btn" data-value="uncertain">?</button>
+    </div>
+  `;
+  item.querySelectorAll(".hpo-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.value;
+      const next = item.dataset.state === val ? "not_assessed" : val;
+      item.dataset.state = next;
+      item.className = "hpo-item" + (next !== "not_assessed" ? ` state-${next}` : "");
+      item.querySelectorAll(".hpo-btn").forEach(b => {
+        b.className = "hpo-btn" + (b.dataset.value === next ? ` active-${next}` : "");
+      });
+      // Live update on HPO change
+      updateLiveDocument();
+      liveAdjustProbabilities();
+    });
+  });
+  hpoList.appendChild(item);
+});
+
+      document.getElementById("demoButton").addEventListener("click", () => startAssessment("demo"));
+      document.getElementById("liveButton").addEventListener("click", () => startAssessment("live"));
+      document.getElementById("resetButton").addEventListener("click", resetUI);
+      document.getElementById("modeDemo").addEventListener("click", () => setMode("demo"));
+      document.getElementById("modeClinical").addEventListener("click", () => setMode("clinical"));
+
+      // Wire clinical intake fields for live document updates
+      ["onsetAge","severityScore","regressionFlag","affectedRelatives","inheritancePattern","priorTestStatus","newPhenotypes"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const ev = (el.type === "checkbox") ? "change" : "input";
+        el.addEventListener(ev, () => { updateLiveDocument(); liveAdjustProbabilities(); });
+      });
+
+      lockClinicalCards();
+      applyRoleMode();
+      applyModeUI();
+      resetUI();
+    }
+
+    // ── Movement & Speech instruction maps ──
+    const MOVEMENT_MAP = {
+      open_close_fists: { prompt: "Open and close both fists repeatedly.", duration: 10 },
+      hands_to_midline: { prompt: "Bring both hands to your body's midline, then apart. Repeat.", duration: 12 },
+      wrist_rotations: { prompt: "Rotate your wrists in large circles, alternating hands.", duration: 10 }
+    };
+    const SPEECH_MAP = {
+      count_1_10: { prompt: "Count from 1 to 10 repeatedly in a steady voice.", duration: 10 },
+      repeat_phrase: { prompt: '"The quick brown fox jumps over the lazy dog"', duration: 10 },
+      describe_prompt: { prompt: "Describe the room or what you see around you.", duration: 12 }
+    };
+
+    // ── Modal plumbing ──
+    let _movementStream = null;
+    let _speechAudioCtx = null, _speechAnalyser = null, _speechMicStream = null, _speechAnimFrame = null;
+    let _modalTimerInterval = null;
+    let _liveAborted = false;
+
+    function openModal(id) { document.getElementById(id).classList.add("open"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+
+    function _startModalTimer(elId, duration) {
+      let elapsed = 0;
+      const el = document.getElementById(elId);
+      el.style.display = "";
+      el.textContent = "0:00";
+      _modalTimerInterval = setInterval(() => {
+        elapsed++;
+        el.textContent = `${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,"0")}`;
+        if (elapsed >= duration) clearInterval(_modalTimerInterval);
+      }, 1000);
+    }
+    function _stopModalTimer(elId) {
+      clearInterval(_modalTimerInterval);
+      const el = document.getElementById(elId);
+      if (el) el.style.display = "none";
+    }
+
+    async function _countdown(elId, seconds) {
+      const el = document.getElementById(elId);
+      el.classList.add("visible");
+      for (let i = seconds; i >= 1; i--) { el.textContent = i; await delay(1000); }
+      el.classList.remove("visible");
+    }
+
+    // ── Webcam for movement modal ──
+    async function _startWebcamPreview() {
+      try {
+        _movementStream = await navigator.mediaDevices.getUserMedia({ video:{width:640,height:480,facingMode:"user"} });
+        document.getElementById("movementVideo").srcObject = _movementStream;
+      } catch(e) { console.warn("Webcam not available for preview:", e); }
+    }
+    function _stopWebcamPreview() {
+      if (_movementStream) { _movementStream.getTracks().forEach(t=>t.stop()); _movementStream = null; }
+      const v = document.getElementById("movementVideo"); if(v) v.srcObject = null;
+    }
+
+    // ── Mic waveform for speech modal ──
+    async function _startMicPreview() {
+      try {
+        _speechMicStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        _speechAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = _speechAudioCtx.createMediaStreamSource(_speechMicStream);
+        _speechAnalyser = _speechAudioCtx.createAnalyser();
+        _speechAnalyser.fftSize = 256;
+        src.connect(_speechAnalyser);
+        _drawSpeechWave();
+      } catch(e) { console.warn("Mic not available for waveform:", e); }
+    }
+    function _drawSpeechWave() {
+      if (!_speechAnalyser) return;
+      const canvas = document.getElementById("speechWaveCanvas");
+      const ctx = canvas.getContext("2d");
+      const bufLen = _speechAnalyser.frequencyBinCount;
+      const data = new Uint8Array(bufLen);
+      const w = canvas.width = canvas.offsetWidth * 2;
+      const h = canvas.height = 280;
+      function frame() {
+        _speechAnalyser.getByteTimeDomainData(data);
+        ctx.fillStyle = "#060a12"; ctx.fillRect(0,0,w,h);
+        ctx.lineWidth = 2; ctx.strokeStyle = "#47cfff"; ctx.beginPath();
+        const sliceW = w / bufLen; let x = 0;
+        for (let i=0; i<bufLen; i++) { const v=data[i]/128, y=(v*h)/2; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); x+=sliceW; }
+        ctx.lineTo(w, h/2); ctx.stroke();
+        _speechAnimFrame = requestAnimationFrame(frame);
+      }
+      frame();
+    }
+    function _stopMicPreview() {
+      cancelAnimationFrame(_speechAnimFrame);
+      if (_speechMicStream) { _speechMicStream.getTracks().forEach(t=>t.stop()); _speechMicStream = null; }
+      if (_speechAudioCtx) { _speechAudioCtx.close(); _speechAudioCtx = null; _speechAnalyser = null; }
+    }
+
+    // Simulated waveform shown while the server records (browser mic is released).
+    let _simWaveFrame = null;
+    function _startSimulatedWave() {
+      const canvas = document.getElementById("speechWaveCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width = canvas.offsetWidth * 2;
+      const h = canvas.height = 280;
+      let t = 0;
+      function frame() {
+        t += 0.06;
+        ctx.fillStyle = "#060a12"; ctx.fillRect(0, 0, w, h);
+        ctx.lineWidth = 2; ctx.strokeStyle = "#47cfff"; ctx.beginPath();
+        for (let x = 0; x < w; x++) {
+          // layered sine waves with slight randomness to look organic
+          const y = h / 2
+            + Math.sin(x * 0.02 + t) * 28
+            + Math.sin(x * 0.035 + t * 1.4) * 16
+            + Math.sin(x * 0.07 + t * 2.1) * 8
+            + (Math.random() - 0.5) * 6;
+          x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        _simWaveFrame = requestAnimationFrame(frame);
+      }
+      frame();
+    }
+    function _stopSimulatedWave() {
+      if (_simWaveFrame) { cancelAnimationFrame(_simWaveFrame); _simWaveFrame = null; }
+    }
+
+    // ── Run a single modality modal (returns feature array or null if skipped) ──
+    function _runMovementModal(taskKey) {
+      return new Promise(async (resolve) => {
+        const task = MOVEMENT_MAP[taskKey] || MOVEMENT_MAP.open_close_fists;
+        const totalSteps = _liveModalCount();
+        document.getElementById("movementPrompt").textContent = task.prompt;
+        document.getElementById("movementStep").textContent = `Step 1 of ${totalSteps}`;
+        document.getElementById("movementBadge").className = "modal-badge";
+        document.getElementById("movementBadge").textContent = "Ready";
+        const startBtn = document.getElementById("movementStart");
+        startBtn.disabled = false;
+        startBtn.textContent = "Start Capture";
+
+        openModal("movementModal");
+        await _startWebcamPreview();
+
+        // Close = skip
+        const onClose = () => { _stopWebcamPreview(); _stopModalTimer("movementTimer"); closeModal("movementModal"); resolve(null); };
+        document.getElementById("movementModalClose").onclick = onClose;
+
+        async function _doMovementCapture(mockProfile) {
+          startBtn.disabled = true;
+          startBtn.textContent = mockProfile ? "Generating..." : "Capturing...";
+          if (!mockProfile) await _countdown("movementCountdown", 3);
+          document.getElementById("movementBadge").className = "modal-badge recording";
+          document.getElementById("movementBadge").textContent = mockProfile ? "Generating demo data..." : "Capturing...";
+          _startModalTimer("movementTimer", task.duration);
+
+          // Release browser webcam so the server's OpenCV can access it (Windows exclusive lock).
+          // Show a status overlay so the user knows capture is happening server-side.
+          _stopWebcamPreview();
+          const captureEl = document.getElementById("movementCapture");
+          const statusDiv = document.createElement("div");
+          statusDiv.id = "movementCaptureStatus";
+          statusDiv.style.cssText = "position:absolute;inset:0;display:grid;place-items:center;text-align:center;z-index:2;";
+          statusDiv.innerHTML = mockProfile
+            ? '<div style="color:var(--amber);font-family:var(--mono);font-size:.8rem;">Generating synthetic movement data...</div>'
+            : '<div><div style="color:var(--amber);font-family:var(--display);font-size:1.3rem;margin-bottom:8px;">Recording via Server</div><div style="color:var(--muted);font-size:.78rem;">MediaPipe is tracking your hands through the webcam.<br>The camera indicator may stay on.</div></div>';
+          captureEl.appendChild(statusDiv);
+
+          let result;
+          try {
+            const body = { task: taskKey };
+            if (mockProfile) body.mock = mockProfile;
+            // Timeout protects against server hangs (BLE scan, device lock, etc.)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const resp = await fetch("/api/test/movement", {
+              method:"POST", headers:{"Content-Type":"application/json"},
+              body: JSON.stringify(body),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            result = await resp.json();
+          } catch(err) {
+            const msg = err.name === "AbortError"
+              ? "Request timed out — the server took too long to respond."
+              : err.message;
+            result = { status:"error", message: msg };
+          }
+
+          // Remove status overlay
+          const overlay = document.getElementById("movementCaptureStatus");
+          if (overlay) overlay.remove();
+
+          _stopModalTimer("movementTimer");
+          if (result.status === "ok") {
+            document.getElementById("movementBadge").className = "modal-badge done";
+            document.getElementById("movementBadge").textContent = mockProfile ? "Demo Complete" : "Done";
+            startBtn.textContent = "\u2713 Complete";
+            await delay(800);
+            closeModal("movementModal");
+            resolve(result.features);
+          } else {
+            document.getElementById("movementBadge").className = "modal-badge";
+            document.getElementById("movementBadge").textContent = "Capture failed";
+            document.getElementById("movementInstruction").innerHTML =
+              `<strong>Error</strong><p style="color:var(--coral)">${result.message || "Unknown error"}</p>
+               <p style="color:var(--muted);margin-top:8px">The server couldn't access the webcam (Windows may still be releasing the device). You can use synthetic demo data instead.</p>`;
+            startBtn.textContent = "Use Demo Data";
+            startBtn.disabled = false;
+            startBtn.onclick = () => _doMovementCapture("rett");
+          }
+        }
+        startBtn.onclick = () => _doMovementCapture(null);
+      });
+    }
+
+    function _runSpeechModal(taskKey) {
+      return new Promise(async (resolve) => {
+        const task = SPEECH_MAP[taskKey] || SPEECH_MAP.repeat_phrase;
+        const totalSteps = _liveModalCount();
+        const stepNum = document.getElementById("toggleMovement").checked ? 2 : 1;
+        document.getElementById("speechPrompt").textContent = task.prompt;
+        document.getElementById("speechStep").textContent = `Step ${stepNum} of ${totalSteps}`;
+        document.getElementById("speechBadge").className = "modal-badge";
+        document.getElementById("speechBadge").textContent = "Ready";
+        document.getElementById("micIcon").classList.remove("active");
+        const startBtn = document.getElementById("speechStart");
+        startBtn.disabled = false;
+        startBtn.textContent = "Start Recording";
+
+        openModal("speechModal");
+        await _startMicPreview();
+
+        const onClose = () => { _stopMicPreview(); _stopModalTimer("speechTimer"); closeModal("speechModal"); resolve(null); };
+        document.getElementById("speechModalClose").onclick = onClose;
+
+        async function _doSpeechCapture(mockProfile) {
+          startBtn.disabled = true;
+          startBtn.textContent = mockProfile ? "Generating..." : "Recording...";
+          if (!mockProfile) await _countdown("speechCountdown", 3);
+          document.getElementById("speechBadge").className = "modal-badge recording";
+          document.getElementById("speechBadge").textContent = mockProfile ? "Generating demo data..." : "Recording...";
+          document.getElementById("micIcon").classList.add("active");
+          _startModalTimer("speechTimer", task.duration);
+
+          // Release browser mic so server's sounddevice can access it (Windows exclusive lock).
+          _stopMicPreview();
+          // Show a simulated waveform so the canvas isn't dead during recording.
+          _startSimulatedWave();
+
+          let result;
+          try {
+            const body = { task: taskKey };
+            if (mockProfile) body.mock = mockProfile;
+            // Timeout protects against server hangs (device lock, etc.)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const resp = await fetch("/api/test/speech", {
+              method:"POST", headers:{"Content-Type":"application/json"},
+              body: JSON.stringify(body),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            result = await resp.json();
+          } catch(err) {
+            const msg = err.name === "AbortError"
+              ? "Request timed out \u2014 the server took too long to respond."
+              : err.message;
+            result = { status:"error", message: msg };
+          }
+
+          _stopSimulatedWave();
+          _stopModalTimer("speechTimer");
+          document.getElementById("micIcon").classList.remove("active");
+          if (result.status === "ok") {
+            document.getElementById("speechBadge").className = "modal-badge done";
+            document.getElementById("speechBadge").textContent = mockProfile ? "Demo Complete" : "Done";
+            startBtn.textContent = "\u2713 Complete";
+            await delay(800);
+            closeModal("speechModal");
+            resolve(result.features);
+          } else {
+            document.getElementById("speechBadge").className = "modal-badge";
+            document.getElementById("speechBadge").textContent = "Capture failed";
+            document.getElementById("speechInstruction").innerHTML =
+              `<strong>Error</strong><p style="color:var(--coral)">${result.message || "Unknown error"}</p>
+               <p style="color:var(--muted);margin-top:8px">The server couldn't access the microphone (Windows may still be releasing the device). You can use synthetic demo data instead.</p>`;
+            startBtn.textContent = "Use Demo Data";
+            startBtn.disabled = false;
+            startBtn.onclick = () => _doSpeechCapture("rett");
+          }
+        }
+        startBtn.onclick = () => _doSpeechCapture(null);
+      });
+    }
+
+    function _liveModalCount() {
+      let n = 0;
+      if (document.getElementById("toggleMovement").checked) n++;
+      if (document.getElementById("toggleSpeech").checked) n++;
+      return n;
+    }
+
+    // ── Main assessment entry point ──
+    async function startAssessment(mode) {
+      resetVisuals();
+      setStatus("Acquiring", true);
+      document.getElementById("modeLabel").textContent = mode === "live" ? "Live pipeline" : "Demo mode";
+      document.getElementById("progressCard").style.display = "grid";
+      document.getElementById("resultsCard").style.display = "none";
+      _liveAborted = false;
+
+      if (mode === "live") {
+        // ── Sequential modal flow ──
+        const tasks = currentGuidedTasks();
+        const movementEnabled = document.getElementById("toggleMovement").checked;
+        const speechEnabled = document.getElementById("toggleSpeech").checked;
+
+        // Clear previous stored features
+        try { await fetch("/api/modality-store/clear", { method:"POST" }); } catch(e) {}
+
+        let movementFeatures = null, speechFeatures = null;
+
+        // Step 1: Movement modal
+        if (movementEnabled) {
+          setProgress(10, "Waiting for movement capture...");
+          movementFeatures = await _runMovementModal(tasks.movement);
+          if (movementFeatures) {
+            setProgress(30, "Movement features captured.");
+            activateSensors(2); // mark Movement done
+          } else {
+            setProgress(30, "Movement skipped.");
+          }
+        }
+
+        // Step 2: Speech modal
+        if (speechEnabled) {
+          setProgress(40, "Waiting for speech capture...");
+          speechFeatures = await _runSpeechModal(tasks.speech);
+          if (speechFeatures) {
+            setProgress(60, "Speech features captured.");
+            activateSensors(3);
+          } else {
+            setProgress(60, "Speech skipped.");
+          }
+        }
+
+        // Step 3: Fuse & classify
+        setProgress(75, "Running fused classifier...");
+        await delay(300);
+
+        let payload;
+        try {
+          // Call the standard /api/run endpoint which will use stored features
+          setProgress(85, "Scoring HPO evidence and synthesizing recommendation...");
+          const response = await fetch("/api/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              intake: collectIntake(),
+              active_sensors: collectActiveSensors(),
+              guided_tasks: tasks
+            })
+          });
+          payload = await response.json();
+          if (payload.status !== "ok") throw new Error(payload.message || "Unknown server error");
+        } catch (error) {
+          setStatus("Error", false);
+          setProgress(100, `Error: ${error.message}`);
+          return;
+        }
+
+        setProgress(100, "Assessment complete.");
+        setStatus("Complete", true);
+        renderPayload(payload);
+
+      } else {
+        // ── Demo mode (unchanged) ──
+        const steps = BASE_STEPS;
+        for (let i = 0; i < steps.length; i += 1) {
+          activateSensors(i);
+          setProgress(Math.round(((i + 1) / steps.length) * 100), steps[i]);
+          await delay(260);
+        }
+
+        let payload;
+        try {
+          const response = await fetch("/api/demo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              profile: document.getElementById("profileSelect").value,
+              intake: collectIntake(),
+              active_sensors: collectActiveSensors(),
+              guided_tasks: currentGuidedTasks()
+            })
+          });
+          payload = await response.json();
+          if (payload.status !== "ok") throw new Error(payload.message || "Unknown server error");
+        } catch (error) {
+          setStatus("Error", false);
+          setProgress(100, `Error: ${error.message}`);
+          return;
+        }
+
+        setStatus("Complete", true);
+        renderPayload(payload);
+      }
+    }
+
+    function collectIntake() {
+      const hpo_states = {};
+      document.querySelectorAll(".hpo-item[data-hpo-id]").forEach(item => {
+  hpo_states[item.dataset.hpoId] = item.dataset.state;
+});
+      return {
+        hpo_states,
+        onset_age_months: Number(document.getElementById("onsetAge").value || 0),
+        severity_score: Number(document.getElementById("severityScore").value || 0.5),
+        developmental_regression: document.getElementById("regressionFlag").checked,
+        affected_relatives: Number(document.getElementById("affectedRelatives").value || 0),
+        inheritance_pattern: document.getElementById("inheritancePattern").value,
+        prior_test_status: document.getElementById("priorTestStatus").value,
+        new_hpo_terms_since_last_test: Number(document.getElementById("newPhenotypes").value || 0)
+      };
+    }
+
+    function collectActiveSensors() {
+      const sensors = [];
+      if (document.getElementById("toggleEEG").checked) sensors.push("EEG");
+      if (document.getElementById("toggleHRV").checked) sensors.push("HRV");
+      if (document.getElementById("toggleMovement").checked) sensors.push("Movement");
+      if (document.getElementById("toggleSpeech").checked) sensors.push("Speech");
+      return sensors;
+    }
+
+    function currentGuidedTasks() {
+      return {
+        movement: document.getElementById("movementTask").value,
+        speech: document.getElementById("speechTask").value
+      };
+    }
+
+    function liveScanSteps() {
+      const tasks = currentGuidedTasks();
+      const movementMap = {
+        open_close_fists: "Movement task: open and close both fists for 10-15 seconds.",
+        hands_to_midline: "Movement task: bring both hands to midline, then return, repeatedly for 10-15 seconds.",
+        wrist_rotations: "Movement task: alternate wrist rotations while hands stay visible on camera."
+      };
+      const speechMap = {
+        count_1_10: "Speech task: count from 1 to 10 repeatedly in a steady voice.",
+        repeat_phrase: "Speech task: repeat a fixed sentence clearly for 10-15 seconds.",
+        describe_prompt: "Speech task: describe the room or what you see around you for 10-15 seconds."
+      };
+
+      return [
+        "Preparing guided capture...",
+        movementMap[tasks.movement] || "Movement task in progress.",
+        speechMap[tasks.speech] || "Speech task in progress.",
+        "Running fused classifier on captured biosignal windows...",
+        "Scoring HPO evidence and prior testing context...",
+        "Synthesizing next-step recommendation..."
+      ];
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  LOCK / UNLOCK + COLLAPSE  –  Clinical cards
+    // ═══════════════════════════════════════════════════
+    let _stripCollapseTimer = null;
+    let _activePopover = null;
+
+    function lockClinicalCards() {
+      const intake = document.getElementById("clinicalIntakeCard");
+      const hpo    = document.getElementById("hpoCard");
+      if (intake) { intake.classList.add("card-locked"); intake.classList.remove("card-unlocked"); intake.style.display = ""; }
+      if (hpo)    { hpo.classList.add("card-locked"); hpo.classList.remove("card-unlocked"); hpo.style.display = ""; }
+      const il = document.getElementById("clinicalIntakeLockLabel");
+      const hl = document.getElementById("hpoLockLabel");
+      if (il) il.style.display = "";
+      if (hl) hl.style.display = "";
+      // Hide icon strip
+      const strip = document.getElementById("clinicalIconStrip");
+      if (strip) { strip.classList.remove("visible","expanded"); }
+    }
+
+    function unlockClinicalCards() {
+      const intake = document.getElementById("clinicalIntakeCard");
+      const hpo    = document.getElementById("hpoCard");
+      // Unlock them (they become the fallback in the expanded strip)
+      if (intake) { intake.classList.remove("card-locked"); intake.classList.add("card-unlocked"); }
+      if (hpo)    { hpo.classList.remove("card-locked"); hpo.classList.add("card-unlocked"); hpo.classList.add("hpo-pulse"); }
+      const il = document.getElementById("clinicalIntakeLockLabel");
+      const hl = document.getElementById("hpoLockLabel");
+      if (il) il.style.display = "none";
+      if (hl) hl.style.display = "none";
+    }
+
+    function collapseClinicalCards() {
+      const intake = document.getElementById("clinicalIntakeCard");
+      const hpo    = document.getElementById("hpoCard");
+      if (intake) intake.style.display = "none";
+      if (hpo)    hpo.style.display = "none";
+      const strip = document.getElementById("clinicalIconStrip");
+      if (strip) strip.classList.add("visible");
+      _setupStripHover();
+    }
+
+    function expandClinicalCards() {
+      const intake = document.getElementById("clinicalIntakeCard");
+      const hpo    = document.getElementById("hpoCard");
+      if (intake) intake.style.display = "";
+      if (hpo)    hpo.style.display = "";
+      const strip = document.getElementById("clinicalIconStrip");
+      if (strip) strip.classList.remove("visible","expanded");
+    }
+
+    function _setupStripHover() {
+      const strip = document.getElementById("clinicalIconStrip");
+      if (!strip || strip._hoverWired) return;
+      strip._hoverWired = true;
+      strip.addEventListener("mouseenter", () => {
+        clearTimeout(_stripCollapseTimer);
+        strip.classList.add("expanded");
+        // Clone current cards into the expanded content area
+        const container = document.getElementById("stripExpandedContent");
+        container.innerHTML = "";
+        const intake = document.getElementById("clinicalIntakeCard");
+        const hpo    = document.getElementById("hpoCard");
+        if (intake) { intake.style.display = ""; container.appendChild(intake); }
+        if (hpo)    { hpo.style.display = ""; container.appendChild(hpo); }
+      });
+      strip.addEventListener("mouseleave", () => {
+        _stripCollapseTimer = setTimeout(() => {
+          strip.classList.remove("expanded");
+          // Move cards back to original parent and hide
+          const body = document.querySelector("#inputCol .body.stack");
+          const intake = document.getElementById("clinicalIntakeCard");
+          const hpo    = document.getElementById("hpoCard");
+          if (intake) { body.appendChild(intake); intake.style.display = "none"; }
+          if (hpo)    { body.appendChild(hpo); hpo.style.display = "none"; }
+        }, 400);
+      });
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  CLIENT‑SIDE HPO SCORING  (mirrors clinical/hpo.py)
+    // ═══════════════════════════════════════════════════
+    function computeHpoScoresClient(hpoStates) {
+      const results = {};
+      for (const [condition, weights] of Object.entries(HPO_WEIGHTS)) {
+        let support = 0, contradiction = 0, assessedWeight = 0;
+        const maxWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+        for (const [hpId, w] of Object.entries(weights)) {
+          const status = hpoStates[hpId] || "not_assessed";
+          const enc = STATUS_ENCODING[status] || 0;
+          if (status !== "not_assessed") assessedWeight += w;
+          if (enc > 0)       support       += w * enc;
+          else if (enc < 0)  contradiction += w * Math.abs(enc);
+        }
+        const net = support - contradiction;
+        const normalized = maxWeight > 0 ? net / maxWeight : 0;
+        const assessed   = maxWeight > 0 ? assessedWeight / maxWeight : 0;
+        results[condition] = { support, contradiction, net, normalized, assessed };
+      }
+      return results;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  REANALYSIS SCORE  (client‑side)
+    // ═══════════════════════════════════════════════════
+    function computeReanalysisScore() {
+      const prior = document.getElementById("priorTestStatus").value;
+      const newPh = Number(document.getElementById("newPhenotypes").value || 0);
+      const regr  = document.getElementById("regressionFlag").checked;
+      let score = 0;
+      if (prior === "negative_panel")    score += 0.35;
+      if (prior === "vus")               score += 0.25;
+      if (prior === "incomplete_panel")   score += 0.30;
+      if (prior === "negative_exome")     score += 0.15;
+      score += Math.min(newPh * 0.10, 0.30);
+      if (regr) score += 0.10;
+      return Math.min(score, 1.0);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  POPOVER INFRASTRUCTURE
+    // ═══════════════════════════════════════════════════
+    function closeActivePopover() {
+      if (_activePopover) { _activePopover.remove(); _activePopover = null; }
+    }
+    document.addEventListener("click", (e) => {
+      if (_activePopover && !_activePopover.contains(e.target) && !e.target.closest(".paper-editable")) {
+        closeActivePopover();
+      }
+    });
+
+    function _positionPopover(pop, anchor) {
+      const doc = document.getElementById("liveDocument");
+      const docRect = doc.getBoundingClientRect();
+      const anchorRect = anchor.getBoundingClientRect();
+      const spaceBelow = docRect.bottom - anchorRect.bottom;
+      const spaceAbove = anchorRect.top - docRect.top;
+      pop.style.left = `${anchorRect.left - docRect.left}px`;
+      if (spaceBelow > 200 || spaceBelow > spaceAbove) {
+        pop.style.top = `${anchorRect.bottom - docRect.top + 4}px`;
+        pop.classList.remove("above");
+      } else {
+        pop.style.bottom = `${docRect.bottom - anchorRect.top + 4}px`;
+        pop.style.top = "auto";
+        pop.classList.add("above");
+      }
+    }
+
+    function _openHpoPopover(anchor, hpoId, hpoLabel) {
+      closeActivePopover();
+      const pop = document.createElement("div");
+      pop.className = "paper-popover";
+      pop.innerHTML = `
+        <div class="pop-header">${hpoId} — ${hpoLabel}</div>
+        <div class="pop-pills">
+          <button class="pop-pill" data-val="present">Confirmed</button>
+          <button class="pop-pill" data-val="absent">Absent</button>
+          <button class="pop-pill" data-val="uncertain">Uncertain</button>
+        </div>
+        <button class="pop-unassess" data-val="not_assessed">Mark unassessed</button>
+      `;
+      // Highlight current state
+      const cur = _getHpoState(hpoId);
+      if (cur === "present")   pop.querySelector('[data-val="present"]').classList.add("pill-green");
+      if (cur === "absent")    pop.querySelector('[data-val="absent"]').classList.add("pill-red");
+      if (cur === "uncertain") pop.querySelector('[data-val="uncertain"]').classList.add("pill-amber");
+
+      pop.querySelectorAll("[data-val]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const val = btn.dataset.val;
+          _setHpoState(hpoId, val);
+          closeActivePopover();
+          updateLiveDocument();
+          liveAdjustProbabilities();
+        });
+      });
+
+      const doc = document.getElementById("liveDocument");
+      doc.appendChild(pop);
+      _positionPopover(pop, anchor);
+      _activePopover = pop;
+    }
+
+    function _openOnsetPopover(anchor) {
+      closeActivePopover();
+      const curOnset = document.getElementById("onsetAge").value;
+      const curSev   = document.getElementById("severityScore").value;
+      const curRegr  = document.getElementById("regressionFlag").checked;
+      const pop = document.createElement("div");
+      pop.className = "paper-popover";
+      pop.innerHTML = `
+        <div class="pop-header">Onset &amp; Progression</div>
+        <div class="pop-row">
+          <label>Age of onset (months)<input type="number" id="_popOnset" min="0" max="240" value="${curOnset}"></label>
+          <label>Clinical severity<input type="range" id="_popSeverity" min="0" max="1" step="0.05" value="${curSev}"></label>
+          <div class="check-row"><input type="checkbox" id="_popRegression" ${curRegr?"checked":""}><span>Developmental regression observed</span></div>
+        </div>
+        <button class="pop-confirm">Confirm</button>
+      `;
+      pop.querySelector(".pop-confirm").addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.getElementById("onsetAge").value = pop.querySelector("#_popOnset").value;
+        document.getElementById("severityScore").value = pop.querySelector("#_popSeverity").value;
+        document.getElementById("regressionFlag").checked = pop.querySelector("#_popRegression").checked;
+        closeActivePopover();
+        _triggerFieldUpdate("onset");
+      });
+      const doc = document.getElementById("liveDocument");
+      doc.appendChild(pop);
+      _positionPopover(pop, anchor);
+      _activePopover = pop;
+    }
+
+    function _openFamilyPopover(anchor) {
+      closeActivePopover();
+      const curRel = document.getElementById("affectedRelatives").value;
+      const curInh = document.getElementById("inheritancePattern").value;
+      const pop = document.createElement("div");
+      pop.className = "paper-popover";
+      pop.innerHTML = `
+        <div class="pop-header">Family History</div>
+        <div class="pop-row">
+          <label>Affected relatives<input type="number" id="_popRelatives" min="0" max="5" value="${curRel}"></label>
+          <label>Suspected inheritance<select id="_popInheritance">
+            <option value="unknown" ${curInh==="unknown"?"selected":""}>Unknown</option>
+            <option value="x_linked" ${curInh==="x_linked"?"selected":""}>X-linked</option>
+            <option value="autosomal_dominant" ${curInh==="autosomal_dominant"?"selected":""}>Autosomal dominant</option>
+            <option value="autosomal_recessive" ${curInh==="autosomal_recessive"?"selected":""}>Autosomal recessive</option>
+            <option value="de_novo" ${curInh==="de_novo"?"selected":""}>De novo</option>
+          </select></label>
+        </div>
+        <button class="pop-confirm">Confirm</button>
+      `;
+      pop.querySelector(".pop-confirm").addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.getElementById("affectedRelatives").value = pop.querySelector("#_popRelatives").value;
+        document.getElementById("inheritancePattern").value = pop.querySelector("#_popInheritance").value;
+        closeActivePopover();
+        _triggerFieldUpdate("family");
+      });
+      const doc = document.getElementById("liveDocument");
+      doc.appendChild(pop);
+      _positionPopover(pop, anchor);
+      _activePopover = pop;
+    }
+
+    function _openPriorPopover(anchor) {
+      closeActivePopover();
+      const curPrior = document.getElementById("priorTestStatus").value;
+      const curNewPh = document.getElementById("newPhenotypes").value;
+      const pop = document.createElement("div");
+      pop.className = "paper-popover";
+      pop.innerHTML = `
+        <div class="pop-header">Prior Genetic Testing</div>
+        <div class="pop-row">
+          <label>Prior test status<select id="_popPrior">
+            <option value="none" ${curPrior==="none"?"selected":""}>None</option>
+            <option value="negative_panel" ${curPrior==="negative_panel"?"selected":""}>Negative panel</option>
+            <option value="negative_exome" ${curPrior==="negative_exome"?"selected":""}>Negative exome</option>
+            <option value="vus" ${curPrior==="vus"?"selected":""}>VUS</option>
+            <option value="incomplete_panel" ${curPrior==="incomplete_panel"?"selected":""}>Incomplete panel</option>
+          </select></label>
+          <label>New phenotypes since last test<input type="number" id="_popNewPh" min="0" max="10" value="${curNewPh}"></label>
+        </div>
+        <button class="pop-confirm">Confirm</button>
+      `;
+      pop.querySelector(".pop-confirm").addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.getElementById("priorTestStatus").value = pop.querySelector("#_popPrior").value;
+        document.getElementById("newPhenotypes").value = pop.querySelector("#_popNewPh").value;
+        closeActivePopover();
+        _triggerFieldUpdate("prior");
+      });
+      const doc = document.getElementById("liveDocument");
+      doc.appendChild(pop);
+      _positionPopover(pop, anchor);
+      _activePopover = pop;
+    }
+
+    // Sync HPO state between paper and left-panel toggles
+    function _getHpoState(hpoId) {
+      const item = document.querySelector(`.hpo-item[data-hpo-id="${hpoId}"]`);
+      return item ? item.dataset.state : "not_assessed";
+    }
+    function _setHpoState(hpoId, val) {
+      const item = document.querySelector(`.hpo-item[data-hpo-id="${hpoId}"]`);
+      if (!item) return;
+      item.dataset.state = val;
+      item.className = "hpo-item" + (val !== "not_assessed" ? ` state-${val}` : "");
+      item.querySelectorAll(".hpo-btn").forEach(b => {
+        b.className = "hpo-btn" + (b.dataset.value === val ? ` active-${val}` : "");
+      });
+    }
+
+    function _triggerFieldUpdate(section) {
+      updateLiveDocument();
+      liveAdjustProbabilities();
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  TYPEWRITER EFFECT
+    // ═══════════════════════════════════════════════════
+    let _twQueue = [];
+    let _twRunning = false;
+
+    function _typewriterInto(el, text, onDone) {
+      el.innerHTML = "";
+      const cursor = document.createElement("span");
+      cursor.className = "tw-cursor";
+      let idx = 0;
+      el.appendChild(cursor);
+      const step = () => {
+        if (idx < text.length) {
+          cursor.before(document.createTextNode(text[idx]));
+          idx++;
+          setTimeout(step, 18);
+        } else {
+          cursor.remove();
+          if (onDone) onDone();
+        }
+      };
+      step();
+    }
+
+    function _typewriterSection(sectionId, newText) {
+      const el = document.getElementById(sectionId);
+      if (!el) return Promise.resolve();
+      const oldText = el.textContent || "";
+      if (oldText === newText) return Promise.resolve();
+      return new Promise(resolve => {
+        if (oldText.trim().length > 0) {
+          el.style.transition = "opacity 150ms";
+          el.style.opacity = "0";
+          setTimeout(() => {
+            el.style.opacity = "1";
+            _typewriterInto(el, newText, resolve);
+          }, 150);
+        } else {
+          _typewriterInto(el, newText, resolve);
+        }
+      });
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  LIVE DOCUMENT BUILDER  (editable paper)
+    // ═══════════════════════════════════════════════════
+    let _lastPaperTexts = {};
+
+    function updateLiveDocument() {
+      const doc = document.getElementById("liveDocument");
+      if (!doc || doc.style.display === "none") return;
+
+      const hpoStates = {};
+      document.querySelectorAll(".hpo-item[data-hpo-id]").forEach(item => {
+        hpoStates[item.dataset.hpoId] = item.dataset.state;
+      });
+
+      const onset      = Number(document.getElementById("onsetAge").value || 0);
+      const severity   = Number(document.getElementById("severityScore").value || 0.5);
+      const regression = document.getElementById("regressionFlag").checked;
+      const relatives  = Number(document.getElementById("affectedRelatives").value || 0);
+      const inherit    = document.getElementById("inheritancePattern").value;
+      const prior      = document.getElementById("priorTestStatus").value;
+      const newPh      = Number(document.getElementById("newPhenotypes").value || 0);
+
+      // ── HPO section — each term rendered individually ──
+      const present = [], absent = [], uncertain = [], notAssessed = [];
+      HPO_TERMS.forEach(([id, label]) => {
+        const s = hpoStates[id] || "not_assessed";
+        if (s === "present")        present.push([id, label]);
+        else if (s === "absent")    absent.push([id, label]);
+        else if (s === "uncertain") uncertain.push([id, label]);
+        else                         notAssessed.push([id, label]);
+      });
+
+      let hpoHtml = "";
+      if (present.length) {
+        hpoHtml += `<span style="color:#2e7d32;font-weight:600">Confirmed:</span> `;
+        hpoHtml += present.map(([id, label]) =>
+          `<span class="paper-editable hpo-present" data-hpo-id="${id}" data-pop="hpo">${label}</span>`
+        ).join(", ") + ". ";
+      }
+      if (absent.length) {
+        hpoHtml += `<span style="color:#c62828;font-weight:600">Absent:</span> `;
+        hpoHtml += absent.map(([id, label]) =>
+          `<span class="paper-editable hpo-absent" data-hpo-id="${id}" data-pop="hpo">${label}</span>`
+        ).join(", ") + ". ";
+      }
+      if (uncertain.length) {
+        hpoHtml += `<span style="color:#e65100;font-weight:600">Uncertain:</span> `;
+        hpoHtml += uncertain.map(([id, label]) =>
+          `<span class="paper-editable hpo-uncertain" data-hpo-id="${id}" data-pop="hpo">${label}</span>`
+        ).join(", ") + ". ";
+      }
+      if (notAssessed.length) {
+        hpoHtml += "<br>";
+        hpoHtml += notAssessed.map(([id, label]) =>
+          `<span class="paper-editable hpo-unassessed" data-hpo-id="${id}" data-pop="hpo">${label} (unassessed)</span>`
+        ).join("&ensp;");
+      }
+      if (!hpoHtml) hpoHtml = '<span class="paper-placeholder">No HPO terms assessed yet.</span>';
+
+      // ── Onset & progression (editable) ──
+      let onsetHtml, onsetPlain;
+      if (onset > 0) {
+        const ageStr = onset >= 12 ? `${(onset/12).toFixed(1)} years` : `${onset} months`;
+        onsetPlain = `Onset at ${ageStr}. Severity ${(severity*100).toFixed(0)}%.`;
+        if (regression) onsetPlain += " Developmental regression observed.";
+        onsetHtml = `<span class="paper-editable filled" data-pop="onset">${onsetPlain}</span>`;
+      } else {
+        onsetPlain = "";
+        onsetHtml = `<span class="paper-editable placeholder" data-pop="onset">Click to enter onset &amp; progression</span>`;
+      }
+
+      // ── Family history (editable) ──
+      let familyHtml, familyPlain;
+      if (relatives > 0 || inherit !== "unknown") {
+        const parts = [];
+        if (relatives > 0) parts.push(`${relatives} affected relative${relatives > 1 ? "s" : ""}`);
+        if (inherit !== "unknown") parts.push(`suspected ${inherit.replace(/_/g," ")} inheritance`);
+        familyPlain = parts.join("; ") + ".";
+        familyHtml = `<span class="paper-editable filled" data-pop="family">${familyPlain}</span>`;
+      } else {
+        familyPlain = "";
+        familyHtml = `<span class="paper-editable placeholder" data-pop="family">Click to enter family history</span>`;
+      }
+
+      // ── Prior testing (editable) ──
+      let priorHtml, priorPlain;
+      if (prior !== "none") {
+        priorPlain = `Prior result: ${prior.replace(/_/g," ")}.`;
+        if (newPh > 0) priorPlain += ` ${newPh} new phenotype${newPh > 1 ? "s" : ""} since last test.`;
+        priorHtml = `<span class="paper-editable filled" data-pop="prior">${priorPlain}</span>`;
+      } else {
+        priorPlain = "";
+        priorHtml = `<span class="paper-editable placeholder" data-pop="prior">Click to enter prior testing</span>`;
+      }
+
+      // ── Biosignal capture summary (read-only) ──
+      let bioText = '<span class="paper-placeholder">No biosignal data captured yet.</span>';
+      if (lastBiosignalResults) {
+        const modsFilled = lastBiosignalResults.modalities_filled || [];
+        bioText = `Modalities captured: <b>${modsFilled.length > 0 ? modsFilled.join(", ") : "none"}</b>.`;
+      }
+
+      // ── Reanalysis score ──
+      const reScore = computeReanalysisScore();
+      let reText = '<span class="paper-placeholder">No reanalysis triggers.</span>';
+      if (reScore > 0) {
+        const pct = (reScore * 100).toFixed(0);
+        reText = `Reanalysis score: <b>${pct}%</b>`;
+        if (reScore >= 0.5) reText += ' — <span class="paper-warn">reanalysis strongly indicated</span>';
+        else if (reScore >= 0.25) reText += ' — moderate indication';
+        else reText += ' — low indication';
+        reText += '.';
+      }
+
+      // ── HPO-condition scores ──
+      const hpoScores = computeHpoScoresClient(hpoStates);
+      let condLines = "";
+      for (const [cond, sc] of Object.entries(hpoScores)) {
+        const styleDef = STYLE[cond] || STYLE.control;
+        condLines += `<span class="paper-line">${styleDef.label}: net ${sc.net.toFixed(2)}, norm ${sc.normalized.toFixed(2)} (${(sc.assessed*100).toFixed(0)}% assessed)</span><br>`;
+      }
+
+      // ── Assemble document ──
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
+      const timeStr = now.toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit" });
+
+      doc.innerHTML = `
+        <div class="paper-head"><span>NeuroPhenotype Clinical Report</span><span>${dateStr} ${timeStr}</span></div>
+        <div class="paper-title">Live Clinical Intake</div>
+        <hr class="paper-rule">
+
+        <div class="paper-section-label">Presenting Phenotype</div>
+        <div id="paperHpoSection">${hpoHtml}</div>
+
+        <div class="paper-section-label">Onset &amp; Progression</div>
+        <div id="paperOnsetSection">${onsetHtml}</div>
+
+        <div class="paper-section-label">Family History</div>
+        <div id="paperFamilySection">${familyHtml}</div>
+
+        <div class="paper-section-label">Prior Genetic Testing</div>
+        <div id="paperPriorSection">${priorHtml}</div>
+
+        <div class="paper-section-label">Biosignal Capture</div>
+        <span class="paper-line">${bioText}</span>
+
+        <div class="paper-section-label">Reanalysis Score</div>
+        <span class="paper-line" id="paperReanalysis">${reText}</span>
+
+        <div class="paper-section-label">HPO\u2192Condition Scores</div>
+        ${condLines || '<span class="paper-placeholder">Assess HPO terms to compute scores.</span>'}
+      `;
+
+      // Wire click handlers on editable spans
+      doc.querySelectorAll(".paper-editable[data-pop='hpo']").forEach(span => {
+        span.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const id = span.dataset.hpoId;
+          const label = HPO_TERMS.find(t => t[0] === id)?.[1] || id;
+          _openHpoPopover(span, id, label);
+        });
+      });
+      doc.querySelectorAll(".paper-editable[data-pop='onset']").forEach(span => {
+        span.addEventListener("click", (e) => { e.stopPropagation(); _openOnsetPopover(span); });
+      });
+      doc.querySelectorAll(".paper-editable[data-pop='family']").forEach(span => {
+        span.addEventListener("click", (e) => { e.stopPropagation(); _openFamilyPopover(span); });
+      });
+      doc.querySelectorAll(".paper-editable[data-pop='prior']").forEach(span => {
+        span.addEventListener("click", (e) => { e.stopPropagation(); _openPriorPopover(span); });
+      });
+
+      // Typewriter for field sections that changed
+      const newTexts = { onset: onsetPlain, family: familyPlain, prior: priorPlain };
+      for (const [key, text] of Object.entries(newTexts)) {
+        if (text && _lastPaperTexts[key] !== text) {
+          const sectionEl = doc.querySelector(`#paper${key.charAt(0).toUpperCase()+key.slice(1)}Section .paper-editable.filled`);
+          if (sectionEl) _typewriterInto(sectionEl, text);
+        }
+      }
+      _lastPaperTexts = newTexts;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  LIVE PROBABILITY ADJUSTMENT  (right column)
+    // ═══════════════════════════════════════════════════
+    function liveAdjustProbabilities() {
+      if (!lastBiosignalResults) return;
+
+      const hpoStates = {};
+      document.querySelectorAll(".hpo-item[data-hpo-id]").forEach(item => {
+        hpoStates[item.dataset.hpoId] = item.dataset.state;
+      });
+      const hpoScores = computeHpoScoresClient(hpoStates);
+
+      // Recompute combined probabilities using the same formula as server._synthesize_results
+      const updatedResults = {};
+      for (const [condition, data] of Object.entries(lastBiosignalResults.results)) {
+        const baseProb = Number(data.biosignal_probability);
+        const hpoData  = hpoScores[condition];
+        let combined = baseProb;
+        if (hpoData) {
+          const hpoNorm     = hpoData.normalized;
+          const hpoAssessed = hpoData.assessed;
+          const hpoComponent   = Math.max(0, hpoNorm) * 0.20 * Math.max(hpoAssessed, 0.25);
+          const conflictPenalty = Math.max(0, -hpoNorm) * 0.15;
+          combined = Math.max(0, Math.min(baseProb + hpoComponent - conflictPenalty, 1.0));
+        }
+        updatedResults[condition] = {
+          ...data,
+          combined_probability: combined,
+          hpo_normalized_score: hpoData ? hpoData.normalized : 0
+        };
+      }
+
+      // Re-render priority list + recommendation column
+      const lowConf = lastBiosignalResults.low_confidence;
+      renderPriorities(updatedResults, lowConf);
+      renderHpoScores(hpoScores);
+
+      // Update recommendation column with new top match
+      const entries = Object.entries(updatedResults).sort((a, b) => Number(b[1].combined_probability) - Number(a[1].combined_probability));
+      if (entries.length > 0) {
+        const [topKey, topData] = entries[0];
+        const style = STYLE[topKey] || STYLE.control;
+        if (!lowConf) {
+          document.getElementById("topMatch").textContent = style.label;
+          document.getElementById("topMatch").style.color = style.color;
+          document.getElementById("topConfidence").textContent = `${(Number(topData.combined_probability) * 100).toFixed(1)}%`;
+        }
+      }
+    }
+
+    function renderPayload(payload) {
+      document.getElementById("resultsCard").style.display = "grid";
+      renderPriorities(payload.results, payload.low_confidence);
+      renderRecommendation(payload);
+      renderHpoScores(payload.hpo_scores);
+      document.getElementById("patientSummary").textContent = payload.patient_summary;
+      document.getElementById("clinicianNote").textContent = payload.clinician_note;
+
+      // Show coverage warning prominently if data is sparse
+      let uncertaintyText = payload.uncertainty || "";
+      if (payload.coverage_warning) {
+        uncertaintyText = `⚠ LOW DATA COVERAGE — ${payload.coverage_warning}\n\n${uncertaintyText}`;
+      }
+      document.getElementById("uncertaintyBox").textContent = uncertaintyText;
+
+      // Stash results for live re‑scoring
+      lastBiosignalResults = payload;
+
+      // Unlock clinical cards, collapse to icon strip, show live document
+      unlockClinicalCards();
+      collapseClinicalCards();
+      _lastPaperTexts = {};
+      const s2 = document.getElementById("step2Label");
+      const ld = document.getElementById("liveDocument");
+      if (s2) { s2.style.display = "block"; }
+      if (ld) { ld.style.display = "block"; ld.classList.add("paper-animate"); }
+      updateLiveDocument();
+    }
+
+    function renderPriorities(results, lowConfidence) {
+      const list = document.getElementById("priorityList");
+      list.innerHTML = "";
+
+      // If low confidence, show an "Insufficient Data" banner first
+      if (lowConfidence) {
+        const banner = document.createElement("div");
+        banner.style.cssText = "padding:14px 16px;border-radius:12px;border:1px solid rgba(241,171,73,.3);background:rgba(241,171,73,.06);margin-bottom:8px;font-size:.78rem;line-height:1.6;color:var(--amber);";
+        banner.innerHTML = `<strong style="font-size:.82rem;">⚠ Insufficient Data for Reliable Classification</strong><br>
+          <span style="color:var(--muted)">The results below are <em>exploratory only</em>. With limited modalities and few HPO terms assessed, 
+          the classifier does not have enough signal to distinguish conditions reliably. 
+          Enable more sensors and complete the clinical checklist for a meaningful result.</span>`;
+        list.appendChild(banner);
+      }
+
+      const entries = Object.entries(results).sort((a, b) => Number(b[1].combined_probability) - Number(a[1].combined_probability));
+      entries.forEach(([condition, data], index) => {
+        if (condition === "control") return;
+        const style = STYLE[condition] || STYLE.control;
+        const row = document.createElement("div");
+        row.className = `row${index === 0 ? " top" : ""}`;
+        const probLabel = lowConfidence ? "(low confidence)" : `${(Number(data.combined_probability) * 100).toFixed(1)}%`;
+        const detail = condition === "reanalysis_triggered"
+          ? "Rule-based trigger from prior testing and new phenotype context."
+          : `Biosignal ${(Number(data.biosignal_probability) * 100).toFixed(1)}% | HPO ${Number(data.hpo_normalized_score).toFixed(2)}`;
+        row.innerHTML = `
+          <div class="row-meta">
+            <div><div class="row-name" style="color:${lowConfidence ? 'var(--dim)' : style.color}">${style.label}</div><div class="row-gene">${data.gene || "-"}</div></div>
+            <div class="row-score" style="color:${lowConfidence ? 'var(--dim)' : style.color}">${probLabel}</div>
+          </div>
+          <div class="row-detail">${detail}</div>
+          <div class="mini-track"><div class="mini-fill" style="background:linear-gradient(90deg, ${style.color}88, ${style.color});${lowConfidence ? 'opacity:0.3;' : ''}"></div></div>
+        `;
+        list.appendChild(row);
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            row.classList.add("show");
+            row.querySelector(".mini-fill").style.width = `${Number(data.combined_probability) * 100}%`;
+          }, index * 90);
+        });
+      });
+    }
+
+    function renderRecommendation(payload) {
+      const topKey = payload.top_condition;
+      const top = payload.results[topKey];
+      const style = STYLE[topKey] || STYLE.control;
+      const lc = payload.low_confidence;
+
+      if (lc) {
+        document.getElementById("topMatch").textContent = "Insufficient Data";
+        document.getElementById("topMatch").style.color = "var(--amber)";
+        document.getElementById("topGene").textContent = "Enable more modalities + HPO terms";
+        document.getElementById("topConfidence").textContent = "N/A";
+        document.getElementById("estimatedSavings").textContent = "-";
+        document.getElementById("turnaround").textContent = "-";
+        document.getElementById("nextStep").textContent = "Not enough data to recommend a panel";
+        document.getElementById("nextRationale").textContent =
+          `Only ${(payload.modalities_filled || []).length} of ${(payload.modalities_active || []).length} ` +
+          `selected modalities provided data. Run the assessment with EEG + HRV + Movement + Speech ` +
+          `and assess the HPO checklist to get a clinically meaningful recommendation.`;
+      } else {
+        document.getElementById("topMatch").textContent = style.label;
+        document.getElementById("topMatch").style.color = style.color;
+        document.getElementById("topGene").textContent = top.gene || "-";
+        document.getElementById("topConfidence").textContent = `${(Number(top.combined_probability) * 100).toFixed(1)}%`;
+        document.getElementById("estimatedSavings").textContent = `$${Number(top.estimated_savings || 0).toLocaleString()}`;
+        document.getElementById("turnaround").textContent = top.turnaround || "-";
+        document.getElementById("nextStep").textContent = topKey === "reanalysis_triggered" ? "Reanalysis first" : top.recommended_panel;
+        document.getElementById("nextRationale").textContent = top.rationale || "";
+      }
+    }
+
+    function renderHpoScores(scores) {
+      const box = document.getElementById("hpoScores");
+      box.innerHTML = "";
+      Object.entries(scores).forEach(([condition, score]) => {
+        const row = document.createElement("div");
+        row.className = "score-row";
+        row.innerHTML = `<span>${STYLE[condition] ? STYLE[condition].label : condition}</span><span>net ${Number(score.net_score).toFixed(2)} | norm ${Number(score.normalized_score).toFixed(2)}</span>`;
+        box.appendChild(row);
+      });
+    }
+
+    // ── Demo / Clinical mode ──
+    let currentMode = "demo";
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById("modeDemo").classList.toggle("active", mode === "demo");
+      document.getElementById("modeClinical").classList.toggle("active", mode === "clinical");
+      applyModeUI();
+    }
+    function applyModeUI() {
+      const isDemo = currentMode === "demo";
+      // Assessment Mode card (the one with the profile selector)
+      const cards = document.querySelectorAll("#inputCol .card");
+      for (const card of cards) {
+        const h3 = card.querySelector("h3");
+        if (h3 && h3.textContent.trim() === "Assessment Mode") {
+          card.style.display = isDemo ? "" : "none";
+          break;
+        }
+      }
+      // Demo button
+      document.getElementById("demoButton").style.display = isDemo ? "" : "none";
+      // Live button label
+      document.getElementById("liveButton").textContent = isDemo ? "Run Live Pipeline" : "Run Assessment";
+      // Clinical banner
+      document.getElementById("clinicalBanner").style.display = isDemo ? "none" : "block";
+    }
+
+    function applyRoleMode() {
+      const inputCol = document.getElementById("inputCol");
+      const clinicianBox = document.getElementById("clinicianBox");
+      const hpoScoresCard = document.getElementById("hpoScoresCard");
+      const liveButton = document.getElementById("liveButton");
+      const main = document.querySelector("main");
+
+      if (currentRole === "patient") {
+        inputCol.style.display = "none";
+        clinicianBox.style.display = "none";
+        hpoScoresCard.style.display = "none";
+        liveButton.style.display = "none";
+        main.style.gridTemplateColumns = "minmax(0, 1fr) 350px";
+        document.querySelector(".tagline").textContent = "Simplified family-facing view";
+        document.getElementById("modeLabel").textContent = "Patient view";
+        document.querySelector(".title").innerHTML = "Clear answers.<br />Less clinical noise.";
+        document.querySelector(".copy").textContent = "This view simplifies the experience for patients and guardians. It keeps the key outcome, the next step, and a plain-language explanation while hiding most technical detail.";
+        document.querySelector("#patientBox .label").textContent = "Family Summary";
+        document.querySelector("#topMatch").textContent = "Awaiting assessment";
+        document.querySelector("#nextStep").textContent = "What happens next";
+      } else {
+        inputCol.style.display = "";
+        clinicianBox.style.display = "";
+        hpoScoresCard.style.display = "";
+        liveButton.style.display = "";
+        main.style.gridTemplateColumns = "";
+      }
+    }
+
+    function resetUI() {
+      resetVisuals();
+      setStatus("System Ready", true);
+      document.getElementById("modeLabel").textContent = currentRole === "patient" ? "Patient view" : "Awaiting assessment";
+      document.getElementById("progressCard").style.display = "none";
+      document.getElementById("resultsCard").style.display = "none";
+      setProgress(0, "Waiting...");
+      document.getElementById("patientSummary").textContent = "Run an assessment to generate a parent-readable summary.";
+      document.getElementById("clinicianNote").textContent = "Run an assessment to generate a structured SOAP-style summary.";
+      document.getElementById("uncertaintyBox").textContent = "Confidence notes and missing-data guidance will appear here after the run.";
+      document.getElementById("topMatch").textContent = "No assessment yet";
+      document.getElementById("topMatch").style.color = "var(--text)";
+      document.getElementById("topGene").textContent = "Gene target will appear here.";
+      document.getElementById("topConfidence").textContent = "0.0%";
+      document.getElementById("estimatedSavings").textContent = "$0";
+      document.getElementById("turnaround").textContent = "-";
+      document.getElementById("nextStep").textContent = currentRole === "patient" ? "What happens next" : "Awaiting data";
+      document.getElementById("nextRationale").textContent = currentRole === "patient"
+        ? "A simplified explanation of the likely next step will appear here."
+        : "Targeted panel recommendation or reanalysis guidance will appear here.";
+      document.getElementById("hpoScores").innerHTML = "";
+      document.getElementById("priorityList").innerHTML = "";
+
+      // Re-lock clinical cards, expand back from icon strip, hide paper document
+      lastBiosignalResults = null;
+      _lastPaperTexts = {};
+      closeActivePopover();
+      expandClinicalCards();
+      lockClinicalCards();
+      const s2 = document.getElementById("step2Label");
+      const ld = document.getElementById("liveDocument");
+      if (s2) s2.style.display = "none";
+      if (ld) { ld.style.display = "none"; ld.classList.remove("paper-animate"); ld.innerHTML = ""; }
+    }
+
+    function resetVisuals() {
+      const active = new Set(collectActiveSensors());
+      SENSORS.forEach(([name]) => {
+        const id = cssId(name);
+        const dot = document.getElementById(`dot-${id}`);
+        const state = document.getElementById(`state-${id}`);
+        dot.classList.remove("active");
+        state.classList.remove("active");
+        state.textContent = active.has(name) ? "Ready" : "Off";
+      });
+    }
+
+    function activateSensors(index) {
+      const active = collectActiveSensors();
+      SENSORS.forEach(([name], idx) => {
+        const id = cssId(name);
+        const dot = document.getElementById(`dot-${id}`);
+        const state = document.getElementById(`state-${id}`);
+        const activeIndex = active.indexOf(name);
+
+        if (activeIndex === -1) {
+          dot.classList.remove("active");
+          state.classList.remove("active");
+          state.textContent = "Off";
+          return;
+        }
+
+        dot.classList.toggle("active", activeIndex <= index);
+        state.classList.toggle("active", activeIndex <= index);
+        state.textContent = activeIndex < index ? "Done" : (activeIndex === index ? "Active" : "Ready");
+      });
+    }
+
+    function setProgress(percent, text) {
+      document.getElementById("progressBar").style.width = `${percent}%`;
+      document.getElementById("progressCopy").textContent = text;
+    }
+
+    function setStatus(label, ok) {
+      document.getElementById("statusLabel").textContent = label;
+      const dot = document.getElementById("statusDot");
+      dot.style.background = ok ? "var(--green)" : "var(--coral)";
+      dot.style.boxShadow = ok ? "0 0 12px rgba(22,231,164,.45)" : "0 0 12px rgba(251,126,143,.45)";
+    }
+
+    function cssId(text) { return text.toLowerCase().replace(/[^a-z0-9]+/g, "-"); }
+    function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+    init();
+  </script>
+</body>
+</html>
