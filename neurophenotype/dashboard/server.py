@@ -10,6 +10,9 @@ import sys
 import sqlite3
 from typing import Any
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+
 import numpy as np
 from flask import Flask, jsonify, request, send_from_directory, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -20,6 +23,7 @@ from classifier.inference import build_inference_vector
 from classifier.train import FEATURE_GROUPS, SYNTHETIC_PROFILES
 from clinical.intake import ClinicalIntake, FamilyHistory, PriorTestRecord
 from clinical.claude_client import maybe_enhance_outputs
+from clinical.extractor import extract_clinical_document, extract_from_text
 from clinical.soap import (
     build_clinician_note,
     build_patient_summary,
@@ -357,6 +361,36 @@ def auth_me() -> Any:
 def auth_logout() -> Any:
     session.clear()
     return jsonify({"status": "ok"})
+
+
+# ── Clinical document extraction ──────────────────────────────
+@app.route("/api/parse_pdf", methods=["POST"])
+def parse_pdf_route() -> Any:
+    """Accept a PDF file upload or pasted clinical text and return a
+    structured extraction patch for the frontend paper document."""
+    try:
+        # Branch 1: multipart file upload
+        if "file" in request.files:
+            pdf_file = request.files["file"]
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+            pdf_file.save(tmp.name)
+            tmp.close()
+            result = extract_clinical_document(tmp.name)
+            os.unlink(tmp.name)
+        # Branch 2: JSON body with raw text
+        elif request.is_json:
+            text = request.json.get("text", "")
+            if not text.strip():
+                return jsonify({"error": "Empty text"}), 400
+            result = extract_from_text(text)
+        else:
+            return jsonify({"error": "Send JSON {text} or multipart file"}), 400
+
+        patch = result.to_frontend_patch()
+        return jsonify({"status": "ok", "patch": patch})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/speech-test")

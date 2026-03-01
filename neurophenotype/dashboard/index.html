@@ -403,6 +403,45 @@
       animation:twBlink .6s step-end infinite;
     }
     @keyframes twBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Extraction Panel (inside paper) ── */
+    .extract-panel {
+      background:#f5f0e8; border:1px dashed #c4b99a; border-radius:6px;
+      padding:12px 14px; margin-bottom:18px;
+    }
+    .extract-panel summary {
+      cursor:pointer; font-family:'DM Serif Display',serif;
+      font-size:.95rem; color:#6b5f4e; user-select:none;
+    }
+    .extract-panel textarea {
+      width:100%; min-height:80px; max-height:220px; resize:vertical;
+      font-family:'Manrope',sans-serif; font-size:.82rem; line-height:1.5;
+      border:1px solid #c4b99a; border-radius:4px; padding:8px 10px;
+      background:#fdfaf3; color:#3e3729; margin-top:8px;
+    }
+    .extract-panel textarea:focus { outline:none; border-color:#2e7d32; }
+    .extract-panel .extract-actions {
+      display:flex; gap:8px; align-items:center; margin-top:8px;
+    }
+    .extract-btn {
+      padding:5px 14px; border:none; border-radius:4px; cursor:pointer;
+      font-size:.8rem; font-weight:600; transition:background .15s;
+    }
+    .extract-btn.primary {
+      background:#2e7d32; color:#fff;
+    }
+    .extract-btn.primary:hover { background:#1b5e20; }
+    .extract-btn.muted {
+      background:#d7cfc0; color:#5a4e3a;
+    }
+    .extract-btn.muted:hover { background:#c4b99a; }
+    .extract-status {
+      font-size:.78rem; color:#6b5f4e; margin-left:6px; font-style:italic;
+    }
+    .extract-demo-link {
+      font-size:.78rem; color:#2e7d32; cursor:pointer;
+      text-decoration:underline; margin-left:auto;
+    }
   </style>
 </head>
 <body>
@@ -1671,6 +1710,18 @@ HPO_TERMS.forEach(([id, label]) => {
         <div class="paper-title">Live Clinical Intake</div>
         <hr class="paper-rule">
 
+        <details class="extract-panel" id="extractPanel">
+          <summary>&#128196; Paste / Upload a clinical note or prior report</summary>
+          <textarea id="extractText" placeholder="Paste referral letter, clinic note, or genetic test report here\u2026"></textarea>
+          <div class="extract-actions">
+            <button class="extract-btn primary" onclick="doExtract()">Extract &amp; Fill</button>
+            <button class="extract-btn muted" onclick="document.getElementById('extractFile').click()">Upload PDF</button>
+            <input type="file" id="extractFile" accept=".pdf" style="display:none" onchange="doExtractPDF(this)">
+            <span class="extract-status" id="extractStatus"></span>
+            <span class="extract-demo-link" onclick="loadDemoNote()">Load demo note</span>
+          </div>
+        </details>
+
         <div class="paper-section-label">Presenting Phenotype</div>
         <div id="paperHpoSection">${hpoHtml}</div>
 
@@ -1721,6 +1772,114 @@ HPO_TERMS.forEach(([id, label]) => {
         }
       }
       _lastPaperTexts = newTexts;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  CLINICAL NOTE EXTRACTION (paste / upload)
+    // ═══════════════════════════════════════════════════
+    const DEMO_CLINICAL_NOTE = `REFERRAL NOTE — Pediatric Neurology\n\nPatient: A.B., 4 y/o female\nDOB: 2020-03-15\n\nReferred by Dr. Smith (Community Pediatrics) for evaluation of developmental regression and stereotypic hand movements noted over the past 8 months.\n\nHISTORY OF PRESENTING COMPLAINT:\nParents report that A.B. was developing normally until approximately 18 months of age, when she began losing previously acquired words and purposeful hand use. She currently has no spoken language. Repetitive hand-wringing and hand-mouthing are present throughout waking hours. Parents also describe episodes of breath-holding and hyperventilation occurring several times daily. Two witnessed generalised tonic-clonic seizures in the past 6 months; EEG showed multifocal epileptiform discharges.\n\nSleep is significantly disrupted with frequent night-time waking and episodes of laughing during sleep.\n\nFAMILY HISTORY:\nMother (32) and father (34) are non-consanguineous. One older sibling (6 y/o male) is healthy with normal development. No family history of epilepsy, intellectual disability, or neurodegenerative conditions. Maternal grandmother has essential tremor.\n\nPRIOR TESTING:\nChromosomal microarray (2022): Normal, no clinically significant CNVs.\nMECP2 sequencing has NOT yet been performed.\n\nEXAMINATION HIGHLIGHTS (summarised):\n- Microcephaly (head circumference < 2nd centile, previously 50th at 12 months)\n- No purposeful hand use; constant hand-wringing stereotypies\n- Broad-based, ataxic gait\n- Bruxism noted during examination\n\nIMPRESSION:\nClinical features are highly suggestive of Rett syndrome. Recommend MECP2 gene analysis.`;
+
+    async function doExtract() {
+      const textarea = document.getElementById("extractText");
+      const status   = document.getElementById("extractStatus");
+      const text     = (textarea?.value || "").trim();
+      if (!text) { status.textContent = "Paste a note first."; return; }
+
+      status.textContent = "Extracting…";
+      try {
+        const res  = await fetch("/api/parse_pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Server error");
+        applyExtractionPatch(data.patch);
+        status.textContent = "✓ Extracted and applied.";
+      } catch (err) {
+        status.textContent = "✗ " + err.message;
+      }
+    }
+
+    async function doExtractPDF(input) {
+      const status = document.getElementById("extractStatus");
+      if (!input.files.length) return;
+      status.textContent = "Uploading PDF…";
+      try {
+        const fd = new FormData();
+        fd.append("file", input.files[0]);
+        const res  = await fetch("/api/parse_pdf", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Server error");
+        applyExtractionPatch(data.patch);
+        status.textContent = "✓ PDF extracted and applied.";
+      } catch (err) {
+        status.textContent = "✗ " + err.message;
+      }
+      input.value = "";
+    }
+
+    function loadDemoNote() {
+      const textarea = document.getElementById("extractText");
+      if (textarea) {
+        textarea.value = DEMO_CLINICAL_NOTE;
+        const panel = document.getElementById("extractPanel");
+        if (panel) panel.open = true;
+      }
+    }
+
+    function applyExtractionPatch(patch) {
+      if (!patch) return;
+
+      // 1. HPO states
+      if (patch.hpo_states) {
+        for (const [hpoId, state] of Object.entries(patch.hpo_states)) {
+          const item = document.querySelector(`.hpo-item[data-hpo-id="${hpoId}"]`);
+          if (!item) continue;
+          item.dataset.state = state;
+          item.querySelectorAll(".hpo-btn").forEach(btn => {
+            const val = btn.dataset.value;
+            btn.classList.remove("active-present", "active-absent", "active-uncertain");
+            if (val === state) btn.classList.add(`active-${state}`);
+          });
+          item.classList.remove("state-present", "state-absent", "state-uncertain", "state-not_assessed");
+          item.classList.add(`state-${state}`);
+        }
+      }
+
+      // 2. Clinical intake fields
+      if (patch.onset_age_months != null) {
+        const el = document.getElementById("onsetAge");
+        if (el) el.value = patch.onset_age_months;
+      }
+      if (patch.severity_score != null) {
+        const el = document.getElementById("severityScore");
+        if (el) el.value = patch.severity_score;
+      }
+      if (patch.regression != null) {
+        const el = document.getElementById("regressionFlag");
+        if (el) el.checked = !!patch.regression;
+      }
+      if (patch.affected_relatives != null) {
+        const el = document.getElementById("affectedRelatives");
+        if (el) el.value = patch.affected_relatives;
+      }
+      if (patch.inheritance_pattern) {
+        const el = document.getElementById("inheritancePattern");
+        if (el) el.value = patch.inheritance_pattern;
+      }
+      if (patch.prior_test_status) {
+        const el = document.getElementById("priorTestStatus");
+        if (el) el.value = patch.prior_test_status;
+      }
+      if (patch.new_phenotypes_since_last != null) {
+        const el = document.getElementById("newPhenotypes");
+        if (el) el.value = patch.new_phenotypes_since_last;
+      }
+
+      // 3. Refresh the paper and probabilities
+      updateLiveDocument();
+      liveAdjustProbabilities();
     }
 
     // ═══════════════════════════════════════════════════
